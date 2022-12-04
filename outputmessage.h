@@ -1,51 +1,57 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __OUTPUT_MESSAGE__
-#define __OUTPUT_MESSAGE__
+#ifndef __OTSERV_OUTPUT_MESSAGE_H__
+#define __OTSERV_OUTPUT_MESSAGE_H__
 #include "otsystem.h"
-#include "tools.h"
 
-#include "connection.h"
 #include "networkmessage.h"
+#include "tools.h"
+#include <list>
 
 #ifdef __TRACK_NETWORK__
 #include <iostream>
 #include <sstream>
 #endif
 
+#include <boost/utility.hpp>
+
 class Protocol;
+class Connection;
+
 #define OUTPUT_POOL_SIZE 100
 
 class OutputMessage : public NetworkMessage, boost::noncopyable
 {
 	private:
-		OutputMessage() {freeMessage();}
+		OutputMessage();
 
 	public:
-		virtual ~OutputMessage() {}
-
-		Protocol* getProtocol() const {return m_protocol;}
-		Connection_ptr getConnection() const {return m_connection;}
+		virtual ~OutputMessage(){}
 
 		char* getOutputBuffer() {return (char*)&m_MsgBuf[m_outputBufferStart];}
-		uint64_t getFrame() const {return m_frame;}
+		Protocol* getProtocol() const {return m_protocol;}
+		Connection* getConnection() const {return m_connection;}
 
 		void writeMessageLength() {addHeader((uint16_t)(m_MsgSize));}
+
 		void addCryptoHeader(bool addChecksum)
 		{
 			if(addChecksum)
@@ -55,19 +61,14 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 		}
 
 #ifdef __TRACK_NETWORK__
-		virtual void Track(std::string file, int64_t line, std::string func)
+		void Track(std::string file, int64_t line, std::string func)
 		{
 			if(lastUses.size() >= 25)
 				lastUses.pop_front();
 
 			std::ostringstream os;
-			os << /*file << ":" */"line " << line << " " << func;
+			os << /*file << ":"*/ "line " << line << " " << func;
 			lastUses.push_back(os.str());
-		}
-
-		virtual void clearTrack()
-		{
-			lastUses.clear();
 		}
 
 		void PrintTrace()
@@ -96,47 +97,47 @@ class OutputMessage : public NetworkMessage, boost::noncopyable
 				return;
 			}
 
-			m_outputBufferStart -= sizeof(T);
+			m_outputBufferStart = m_outputBufferStart - sizeof(T);
 			*(T*)(m_MsgBuf + m_outputBufferStart) = value;
-			m_MsgSize += sizeof(T);
+			m_MsgSize = m_MsgSize + sizeof(T);
 		}
 
 		void freeMessage()
 		{
-			setConnection(Connection_ptr());
+			setConnection(NULL);
 			setProtocol(NULL);
 			m_frame = 0;
-
-			//allocate enough size for headers:
-			// 2 bytes for unencrypted message
-			// 4 bytes for checksum
-			// 2 bytes for encrypted message
+			//allocate enough size for headers
+			//2 bytes for unencrypted message
+			//4 bytes for checksum
+			//2 bytes for encrypted message
 			m_outputBufferStart = 8;
+			//setState have to be the last one
 			setState(OutputMessage::STATE_FREE);
 		}
 
 		friend class OutputMessagePool;
 
 		void setProtocol(Protocol* protocol) {m_protocol = protocol;}
-		void setConnection(Connection_ptr connection) {m_connection = connection;}
+		void setConnection(Connection* connection) {m_connection = connection;}
 
 		void setState(OutputMessageState state) {m_state = state;}
 		OutputMessageState getState() const {return m_state;}
 
 		void setFrame(uint64_t frame) {m_frame = frame;}
+		uint64_t getFrame() const {return m_frame;}
 
 		Protocol* m_protocol;
-		Connection_ptr m_connection;
-#ifdef __TRACK_NETWORK__
-		std::list<std::string> lastUses;
-#endif
+		Connection* m_connection;
 
 		OutputMessageState m_state;
 		uint64_t m_frame;
 		uint32_t m_outputBufferStart;
-};
 
-typedef boost::shared_ptr<OutputMessage> OutputMessage_ptr;
+#ifdef __TRACK_NETWORK__
+		std::list<std::string> lastUses;
+#endif
+};
 
 class OutputMessagePool
 {
@@ -144,55 +145,43 @@ class OutputMessagePool
 		OutputMessagePool();
 
 	public:
-#ifdef __ENABLE_SERVER_DIAGNOSTIC__
-		static uint32_t outputMessagePoolCount;
-#endif
 		virtual ~OutputMessagePool();
+
 		static OutputMessagePool* getInstance()
 		{
 			static OutputMessagePool instance;
 			return &instance;
 		}
 
-		OutputMessage_ptr getOutputMessage(Protocol* protocol, bool autoSend = true);
+		OutputMessage* getOutputMessage(Protocol* protocol, bool autosend = true);
 
-		void send(OutputMessage_ptr msg);
-		void stop() {m_shutdown = true;}
+		void send(OutputMessage* msg);
 		void sendAll();
 
 		void startExecutionFrame();
-		void autoSend(OutputMessage_ptr msg);
+		void releaseMessage(OutputMessage* msg, bool sent = false);
+		void stop() {m_shutdown = true;}
 
-#ifdef __ENABLE_SERVER_DIAGNOSTIC__
-		size_t getTotalMessageCount() const {return (size_t)outputMessagePoolCount;}
-#else
-		size_t getTotalMessageCount() const {return m_allMessages.size();}
-#endif
+		size_t getTotalMessageCount() const {return m_allOutputMessages.size();}
 		size_t getAvailableMessageCount() const {return m_outputMessages.size();}
-		size_t getAutoMessageCount() const {return m_autoSend.size();}
-		size_t getQueuedMessageCount() const {return m_addQueue.size();}
+		size_t getAutoMessageCount() const {return m_autoSendOutputMessages.size();}
 
 	protected:
-		void configureOutputMessage(OutputMessage_ptr msg, Protocol* protocol, bool autoSend);
-
-		void releaseMessage(OutputMessage* msg);
+		void configureOutputMessage(OutputMessage* msg, Protocol* protocol, bool autosend);
 		void internalReleaseMessage(OutputMessage* msg);
 
-		typedef std::list<OutputMessage_ptr> OutputMessageList;
-		OutputMessageList m_autoSend;
-		OutputMessageList m_addQueue;
+		typedef std::list<OutputMessage*> OutputMessageVector;
+		OutputMessageVector m_outputMessages;
+		OutputMessageVector m_autoSendOutputMessages;
+		OutputMessageVector m_allOutputMessages;
 
-		typedef std::list<OutputMessage*> InternalList;
-		InternalList m_outputMessages;
-		InternalList m_allMessages;
-
-		boost::recursive_mutex m_outputPoolLock;
+		OTSYS_THREAD_LOCKVAR m_outputPoolLock;
 		uint64_t m_frameTime;
 		bool m_shutdown;
 };
 
 #ifdef __TRACK_NETWORK__
-	#define TRACK_MESSAGE(omsg) (omsg)->Track(__FILE__, __LINE__, __FUNCTION__)
+	#define TRACK_MESSAGE(omsg) if(dynamic_cast<OutputMessage*>(omsg)) dynamic_cast<OutputMessage*>(omsg)->Track(__FILE__, __LINE__, __FUNCTION__)
 #else
 	#define TRACK_MESSAGE(omsg)
 #endif

@@ -1,24 +1,4 @@
-////////////////////////////////////////////////////////////////////////
-// OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
-
-#ifndef __RESOURCES__
-#define __RESOURCES__
-#include "definitions.h"
-#if defined(WINDOWS) && !defined(__CONSOLE__)
+#ifndef __CONSOLE__
 	#define ID_KICK 101
 	#define ID_BAN 102
 	#define ID_ABOUT 104
@@ -43,51 +23,40 @@
 	#define ID_MENU_SERVER_BROADCAST 208
 	#define ID_MENU_SERVER_SAVE 209
 	#define ID_MENU_SERVER_CLEAN 210
-	#define ID_MENU_SERVER_REFRESH 211
-	#define ID_MENU_SERVER_CLOSE 212
-	#define ID_MENU_SERVER_OPEN 213
+	#define ID_MENU_SERVER_CLOSE 211
+	#define ID_MENU_SERVER_OPEN 212
 
-	#define ID_MENU_SERVER_PLAYERBOX 214
+	#define ID_MENU_SERVER_PLAYERBOX 213
 
-	#define ID_MENU_RELOAD_ACTIONS 215
-	#define ID_MENU_RELOAD_CHAT 216
-	#define ID_MENU_RELOAD_CONFIG 217
-	#define ID_MENU_RELOAD_CREATUREEVENTS 218
+	#define ID_MENU_RELOAD_ACTIONS 214
+	#define ID_MENU_RELOAD_CONFIG 215
+	#define ID_MENU_RELOAD_CREATUREEVENTS 216
 	#ifdef __LOGIN_SERVER__
-	#define ID_MENU_RELOAD_GAMESERVERS 219
+	#define ID_MENU_RELOAD_GAMESERVERS 217
 	#endif
-	#define ID_MENU_RELOAD_GLOBALEVENTS 220
-	#define ID_MENU_RELOAD_GROUPS 221
-	#define ID_MENU_RELOAD_HIGHSCORES 222
-	#define ID_MENU_RELOAD_HOUSEPRICES 223
-	#define ID_MENU_RELOAD_ITEMS 224
-	#define ID_MENU_RELOAD_MONSTERS 225
-	#define ID_MENU_RELOAD_MODS 226
-	#define ID_MENU_RELOAD_MOVEMENTS 227
-	#define ID_MENU_RELOAD_NPCS 228
-	#define ID_MENU_RELOAD_OUTFITS 229
-	#define ID_MENU_RELOAD_QUESTS 230
-	#define ID_MENU_RELOAD_RAIDS 231
-	#define ID_MENU_RELOAD_SPELLS 232
-	#define ID_MENU_RELOAD_STAGES 233
-	#define ID_MENU_RELOAD_TALKACTIONS 234
-	#define ID_MENU_RELOAD_VOCATIONS 235
-	#define ID_MENU_RELOAD_WEAPONS 236
-	#define ID_MENU_RELOAD_ALL 237
+	#define ID_MENU_RELOAD_GLOBALEVENTS 218
+	#define ID_MENU_RELOAD_HIGHSCORES 219
+	#define ID_MENU_RELOAD_HOUSEPRICES 220
+	#define ID_MENU_RELOAD_ITEMS 221
+	#define ID_MENU_RELOAD_MONSTERS 222
+	#define ID_MENU_RELOAD_MOVEMENTS 223
+	#define ID_MENU_RELOAD_NPCS 224
+	#define ID_MENU_RELOAD_OUTFITS 225
+	#define ID_MENU_RELOAD_QUESTS 226
+	#define ID_MENU_RELOAD_RAIDS 227
+	#define ID_MENU_RELOAD_SPELLS 228
+	#define ID_MENU_RELOAD_STAGES 229
+	#define ID_MENU_RELOAD_TALKACTIONS 230
+	#define ID_MENU_RELOAD_VOCATIONS 231
+	#define ID_MENU_RELOAD_WEAPONS 232
+	#define ID_MENU_RELOAD_ALL 233
 #endif
-
-#define CLIENT_VERSION_MIN 854
-#define CLIENT_VERSION_MAX 854
-#define CLIENT_VERSION_STRING "Only clients with protocol 8.54 allowed!"
 
 #define STATUS_SERVER_NAME "The Forgotten Server"
-#define STATUS_SERVER_VERSION "0.3.6"
-#define STATUS_SERVER_CODENAME "Crying Damson"
-#define STATUS_SERVER_PROTOCOL "8.54"
-
-#define VERSION_CHECK "http://forgottenserver.otland.net/version.xml"
-#define VERSION_PATCH 1
-#define VERSION_TIMESTAMP 1261647210
-#define VERSION_BUILD 3429
-#define VERSION_DATABASE 23
-#endif
+#define STATUS_SERVER_VERSION "0.4"
+#define STATUS_SERVER_CODENAME "Alpha 1"
+#define STATUS_SERVER_PROTOCOL "8.4"
+#define CLIENT_VERSION_MIN 840
+#define CLIENT_VERSION_MAX 840
+#define CLIENT_VERSION_STRING "Only clients with protocol 8.4 allowed!"
+#define LATEST_DB_VERSION 8

@@ -1,27 +1,33 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
+
 #include "otpch.h"
 #include <iostream>
+
 #include <boost/regex.hpp>
 
 #include "database.h"
 #include "databasesqlite.h"
 
 #include "tools.h"
+
 #include "configmanager.h"
 extern ConfigManager g_config;
 
@@ -31,9 +37,13 @@ extern ConfigManager g_config;
 #define OTSYS_SQLITE3_PREPARE sqlite3_prepare_v2
 #endif
 
+/** DatabaseSQLite definitions */
+
 DatabaseSQLite::DatabaseSQLite()
 {
+	OTSYS_THREAD_LOCKVARINIT(sqliteLock);
 	m_connected = false;
+
 	// test for existence of database file;
 	// sqlite3_open will create a new one if it isn't there (what we don't want)
 	if(!fileExists(g_config.getString(ConfigManager::SQL_FILE).c_str()))
@@ -49,6 +59,11 @@ DatabaseSQLite::DatabaseSQLite()
 		m_connected = true;
 }
 
+DatabaseSQLite::~DatabaseSQLite()
+{
+	sqlite3_close(m_handle);
+}
+
 bool DatabaseSQLite::getParam(DBParam_t param)
 {
 	switch(param)
@@ -61,6 +76,21 @@ bool DatabaseSQLite::getParam(DBParam_t param)
 	return false;
 }
 
+bool DatabaseSQLite::beginTransaction()
+{
+	return executeQuery("BEGIN");
+}
+
+bool DatabaseSQLite::rollback()
+{
+	return executeQuery("ROLLBACK");
+}
+
+bool DatabaseSQLite::commit()
+{
+	return executeQuery("COMMIT");
+}
+
 std::string DatabaseSQLite::_parse(const std::string &s)
 {
 	std::string query = "";
@@ -69,8 +99,8 @@ std::string DatabaseSQLite::_parse(const std::string &s)
 	bool inString = false;
 	for(uint32_t i = 0; i < s.length(); i++)
 	{
-		uint8_t ch = s[i];
-		if(ch == '\'')
+		uint8_t c = s[i];
+		if(c == '\'')
 		{
 			if(inString && s[i + 1] != '\'')
 				inString = false;
@@ -78,10 +108,10 @@ std::string DatabaseSQLite::_parse(const std::string &s)
 				inString = true;
 		}
 
-		if(ch == '`' && !inString)
-			ch = '"';
+		if(c == '`' && !inString)
+			c = '"';
 
-		query += ch;
+		query += c;
 	}
 
 	return query;
@@ -89,7 +119,7 @@ std::string DatabaseSQLite::_parse(const std::string &s)
 
 bool DatabaseSQLite::executeQuery(const std::string &query)
 {
-	boost::recursive_mutex::scoped_lock lockClass(sqliteLock);
+	OTSYS_THREAD_LOCK_CLASS lockClass(sqliteLock);
 	if(!m_connected)
 		return false;
 
@@ -124,7 +154,7 @@ bool DatabaseSQLite::executeQuery(const std::string &query)
 
 DBResult* DatabaseSQLite::storeQuery(const std::string &query)
 {
-	boost::recursive_mutex::scoped_lock lockClass(sqliteLock);
+	OTSYS_THREAD_LOCK_CLASS lockClass(sqliteLock);
 	if(!m_connected)
 		return NULL;
 
@@ -154,9 +184,9 @@ std::string DatabaseSQLite::escapeString(const std::string &s)
 
 	// the worst case is 2n + 3
 	char* output = new char[s.length() * 2 + 3];
+
 	// quotes escaped string and frees temporary buffer
 	sqlite3_snprintf(s.length() * 2 + 1, output, "%Q", s.c_str());
-
 	std::string r(output);
 	delete[] output;
 
@@ -183,6 +213,13 @@ std::string DatabaseSQLite::escapeBlob(const char* s, uint32_t length)
 	buf += "'";
 	return buf;
 }
+
+void DatabaseSQLite::freeResult(DBResult* res)
+{
+	delete (SQLiteResult*)res;
+}
+
+/** SQLiteResult definitions */
 
 int32_t SQLiteResult::getDataInt(const std::string &s)
 {
@@ -231,29 +268,23 @@ const char* SQLiteResult::getDataStream(const std::string &s, uint64_t &size)
 	return NULL; // Failed
 }
 
-void SQLiteResult::free()
+bool SQLiteResult::next()
 {
-	if(m_handle)
-	{
-		sqlite3_finalize(m_handle);
-		delete this;
-	}
-	else
-		std::cout << "[Warning - SQLiteResult::free] Trying to free already freed result." << std::endl;
+	// checks if after moving to next step we have a row result
+	return sqlite3_step(m_handle) == SQLITE_ROW;
 }
 
 SQLiteResult::SQLiteResult(sqlite3_stmt* stmt)
 {
-	if(!stmt)
-	{
-		delete this;
-		return;
-	}
-
 	m_handle = stmt;
 	m_listNames.clear();
 
 	int32_t fields = sqlite3_column_count(m_handle);
 	for(int32_t i = 0; i < fields; i++)
 		m_listNames[sqlite3_column_name(m_handle, i)] = i;
+}
+
+SQLiteResult::~SQLiteResult()
+{
+	sqlite3_finalize(m_handle);
 }

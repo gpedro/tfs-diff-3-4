@@ -1,22 +1,26 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __PROTOCOL_OLD__
-#define __PROTOCOL_OLD__
+#ifndef __OTSERV_PROTOCOL_OLD_H__
+#define __OTSERV_PROTOCOL_OLD_H__
+
 #include "protocol.h"
 
 class NetworkMessage;
@@ -28,9 +32,7 @@ class ProtocolOld : public Protocol
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 		static uint32_t protocolOldCount;
 #endif
-		virtual void onRecvFirstMessage(NetworkMessage& msg);
-
-		ProtocolOld(Connection_ptr connection): Protocol(connection)
+		ProtocolOld(Connection* connection) : Protocol(connection)
 		{
 #ifdef __ENABLE_SERVER_DIAGNOSTIC__
 			protocolOldCount++;
@@ -44,33 +46,18 @@ class ProtocolOld : public Protocol
 #endif
 		}
 
-		enum {isSingleSocket = false};
-		enum {hasChecksum = false};
+		virtual int32_t getProtocolId() {return 0x00;}
+
+		virtual void onRecvFirstMessage(NetworkMessage& msg);
 
 	protected:
+		void disconnectClient(uint8_t error, const char* message);
+
+		bool parseFirstPacket(NetworkMessage& msg);
+
 		#ifdef __DEBUG_NET_DETAIL__
 		virtual void deleteProtocolTask();
 		#endif
-
-		void disconnectClient(uint8_t error, const char* message);
-		bool parseFirstPacket(NetworkMessage& msg);
 };
 
-class ProtocolOldLogin : public ProtocolOld
-{
-	public:
-		ProtocolOldLogin(Connection_ptr connection) : ProtocolOld(connection) {}
-
-		enum {protocolId = 0x01};
-		static const char* protocolName() {return "old login protocol";}
-};
-
-class ProtocolOldGame : public ProtocolOld
-{
-	public:
-		ProtocolOldGame(Connection_ptr connection) : ProtocolOld(connection) {}
-
-		enum {protocolId = 0x0A};
-		static const char* protocolName() {return "old game protocol";}
-};
 #endif

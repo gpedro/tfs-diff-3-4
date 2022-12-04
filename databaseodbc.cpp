@@ -1,34 +1,44 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
+
+//
 // C++ Implementation: databaseodbc
+//
 // Description: Frontend for ODBC connections
 //
+//
 // Author: Bruno R Ferreira <brf_coldf@yahoo.com.br>, (C) 2007
-////////////////////////////////////////////////////////////////////////
-#include "otpch.h"
+//
+//
+
 #include <iostream>
 
 #include "database.h"
 #include "databaseodbc.h"
 
+#define RETURN_SUCCESS(ret) (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO)
+
 #include "configmanager.h"
 extern ConfigManager g_config;
 
-#define RETURN_SUCCESS(ret) (ret == SQL_SUCCESS || ret == SQL_SUCCESS_WITH_INFO)
+/** DatabaseODBC definitions */
 
 DatabaseODBC::DatabaseODBC()
 {
@@ -111,11 +121,12 @@ bool DatabaseODBC::getParam(DBParam_t param)
 	switch(param)
 	{
 		case DBPARAM_MULTIINSERT:
-		default:
+			return false;
 			break;
-	}
 
-	return false;
+		default:
+			return false;
+	}
 }
 
 bool DatabaseODBC::beginTransaction()
@@ -147,7 +158,10 @@ bool DatabaseODBC::executeQuery(const std::string& query)
 	std::cout << "ODBC QUERY: " << query << std::endl;
 	#endif
 
+	std::string buf = _parse(query);
+
 	SQLHSTMT stmt;
+
 	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_STMT, m_handle, &stmt);
 	if(!RETURN_SUCCESS(ret))
 	{
@@ -155,8 +169,8 @@ bool DatabaseODBC::executeQuery(const std::string& query)
 		return false;
 	}
 
-	std::string buf = _parse(query);
 	ret = SQLExecDirect(stmt, (SQLCHAR*)buf.c_str(), buf.length());
+
 	if(!RETURN_SUCCESS(ret))
 	{
 		std::cout << "SQLExecDirect(): " << query << ": ODBC ERROR." << std::endl;
@@ -175,7 +189,10 @@ DBResult* DatabaseODBC::storeQuery(const std::string& query)
 	std::cout << "ODBC QUERY: " << query << std::endl;
 	#endif
 
+	std::string buf = _parse(query);
+
 	SQLHSTMT stmt;
+
 	SQLRETURN ret = SQLAllocHandle(SQL_HANDLE_STMT, m_handle, &stmt);
 	if(!RETURN_SUCCESS(ret))
 	{
@@ -183,8 +200,8 @@ DBResult* DatabaseODBC::storeQuery(const std::string& query)
 		return NULL;
 	}
 
-	std::string buf = _parse(query);
 	ret = SQLExecDirect(stmt, (SQLCHAR*)buf.c_str(), buf.length() );
+
 	if(!RETURN_SUCCESS(ret))
 	{
 		std::cout << "SQLExecDirect(): " << query << ": ODBC ERROR." << std::endl;
@@ -195,9 +212,15 @@ DBResult* DatabaseODBC::storeQuery(const std::string& query)
 	return verifyResult(results);
 }
 
+std::string DatabaseODBC::escapeString(const std::string& s)
+{
+	return escapeBlob( s.c_str(), s.length() );
+}
+
 std::string DatabaseODBC::escapeBlob(const char *s, uint32_t length)
 {
 	std::string buf = "'";
+
 	for(uint32_t i = 0; i < length; i++)
 	{
 		switch(s[i])
@@ -234,12 +257,14 @@ std::string DatabaseODBC::escapeBlob(const char *s, uint32_t length)
 std::string DatabaseODBC::_parse(const std::string& s)
 {
 	std::string query = "";
-	query.reserve(s.size());
 
+	query.reserve(s.size());
 	bool inString = false;
+	uint8_t ch;
 	for(uint32_t a = 0; a < s.length(); a++)
 	{
-		uint8_t ch = s[a];
+		ch = s[a];
+
 		if(ch == '\'')
 		{
 			if(inString && s[a + 1] != '\'')
@@ -256,6 +281,13 @@ std::string DatabaseODBC::_parse(const std::string& s)
 
 	return query;
 }
+
+void DatabaseODBC::freeResult(DBResult* res)
+{
+	delete (ODBCResult*)res;
+}
+
+/** ODBCResult definitions */
 
 int32_t ODBCResult::getDataInt(const std::string& s)
 {
@@ -320,24 +352,16 @@ const char* ODBCResult::getDataStream(const std::string& s, uint64_t& size)
 	if(it != m_listNames.end())
 	{
 		char* value = new char[1024];
-		if(RETURN_SUCCESS(SQLGetData(m_handle, it->second, SQL_C_BINARY, value, 1024, (SQLLEN*)&size)))
+		SQLRETURN ret = SQLGetData(m_handle, it->second, SQL_C_BINARY, value, 1024, (SQLLEN*)&size);
+
+		if( RETURN_SUCCESS(ret))
 			return value;
+		else
+			std::cout << "Error during getDataStream(" << s << ")." << std::endl;
 	}
 
 	std::cout << "Error during getDataStream(" << s << ")." << std::endl;
-	size = 0;
 	return 0; // Failed
-}
-
-void ODBCResult::free()
-{
-	if(m_handle)
-	{
-		SQLFreeHandle(SQL_HANDLE_STMT, m_handle);
-		delete this;
-	}
-	else
-		std::cout << "[Warning - ODBCResult::free] Trying to free already freed result." << std::endl;
 }
 
 bool ODBCResult::next()
@@ -348,20 +372,20 @@ bool ODBCResult::next()
 
 ODBCResult::ODBCResult(SQLHSTMT stmt)
 {
-	if(!res)
-	{
-		delete this;
-		return;
-	}
-
 	m_handle = stmt;
-	int16_t numCols = 0;
 
+	int16_t numCols;
 	SQLNumResultCols(m_handle, &numCols);
+
 	for(int32_t i = 1; i <= numCols; i++)
 	{
 		char* name = new char[129];
 		SQLDescribeCol(m_handle, i, (SQLCHAR*)name, 129, NULL, NULL, NULL, NULL, NULL);
 		m_listNames[name] = i;
 	}
+}
+
+ODBCResult::~ODBCResult()
+{
+	SQLFreeHandle(SQL_HANDLE_STMT, m_handle);
 }

@@ -1,36 +1,37 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-#if defined WINDOWS
+
+#include "definitions.h"
+
+#if defined WIN32
 #include <winerror.h>
 #endif
 
 #include "protocol.h"
-#include "scheduler.h"
-
 #include "connection.h"
 #include "outputmessage.h"
-
-#include "tools.h"
+#include "scheduler.h"
 #include "rsa.h"
 
-extern RSA g_RSA;
-
-void Protocol::onSendMessage(OutputMessage_ptr msg)
+void Protocol::onSendMessage(OutputMessage* msg)
 {
 	#ifdef __DEBUG_NET_DETAIL__
 	std::cout << "Protocol::onSendMessage" << std::endl;
@@ -44,19 +45,12 @@ void Protocol::onSendMessage(OutputMessage_ptr msg)
 			std::cout << "Protocol::onSendMessage - encrypt" << std::endl;
 			#endif
 			XTEA_encrypt(*msg);
-		}
-
-		if(m_checksumEnabled)
-		{
-			#ifdef __DEBUG_NET_DETAIL__
-			std::cout << "Protocol::onSendMessage - crypto header" << std::endl;
-			#endif
 			msg->addCryptoHeader(m_checksumEnabled);
 		}
 	}
 
 	if(msg == m_outputBuffer)
-		m_outputBuffer.reset();
+		m_outputBuffer = NULL;
 }
 
 void Protocol::onRecvMessage(NetworkMessage& msg)
@@ -75,33 +69,37 @@ void Protocol::onRecvMessage(NetworkMessage& msg)
 	parsePacket(msg);
 }
 
-OutputMessage_ptr Protocol::getOutputBuffer()
+OutputMessage* Protocol::getOutputBuffer()
 {
 	if(m_outputBuffer)
 		return m_outputBuffer;
 
-	if(m_connection)
+	else if(m_connection)
 	{
 		m_outputBuffer = OutputMessagePool::getInstance()->getOutputMessage(this);
 		return m_outputBuffer;
 	}
-
-	return OutputMessage_ptr();
+	else
+		return NULL;
 }
 
 void Protocol::releaseProtocol()
 {
 	if(m_refCount > 0)
-		Scheduler::getInstance().addEvent(createSchedulerTask(SCHEDULER_MINTICKS, boost::bind(&Protocol::releaseProtocol, this)));
+		Scheduler::getScheduler().addEvent(createSchedulerTask(SCHEDULER_MINTICKS, boost::bind(&Protocol::releaseProtocol, this)));
 	else
 		deleteProtocolTask();
+		
 }
 
 void Protocol::deleteProtocolTask()
 {
 	//dispather thread
-	assert(!m_refCount);
-	setConnection(Connection_ptr());
+	assert(m_refCount == 0);
+	setConnection(NULL);
+	if(m_outputBuffer)
+		OutputMessagePool::getInstance()->releaseMessage(m_outputBuffer);
+
 	delete this;
 }
 
@@ -125,7 +123,9 @@ void Protocol::XTEA_encrypt(OutputMessage& msg)
 	uint32_t* buffer = (uint32_t*)msg.getOutputBuffer();
 	while(readPos < messageLength / 4)
 	{
-		uint32_t v0 = buffer[readPos], v1 = buffer[readPos + 1], delta = 0x61C88647, sum = 0;
+		uint32_t v0 = buffer[readPos], v1 = buffer[readPos + 1];
+		uint32_t delta = 0x61C88647;
+		uint32_t sum = 0;
 		for(int32_t i = 0; i < 32; i++)
 		{
 			v0 += ((v1 << 4 ^ v1 >> 5) + v1) ^ (sum + k[sum & 3]);
@@ -143,12 +143,7 @@ bool Protocol::XTEA_decrypt(NetworkMessage& msg)
 {
 	if((msg.getMessageLength() - 6) % 8 != 0)
 	{
-		std::cout << "[Failure - Protocol::XTEA_decrypt] Not valid encrypted message size";
-		int32_t ip = getIP();
-		if(ip)
-			std::cout << " (IP: " << convertIPAddress(ip) << ")";
-
-		std::cout << std::endl;
+		std::cout << "Failure: [Protocol::XTEA_decrypt]. Not valid encrypted message size" << std::endl;
 		return false;
 	}
 
@@ -156,11 +151,14 @@ bool Protocol::XTEA_decrypt(NetworkMessage& msg)
 	for(uint8_t i = 0; i < 4; i++)
 		k[i] = m_key[i];
 
-	int32_t messageLength = msg.getMessageLength() - 6, readPos = 0;
+	int32_t messageLength = msg.getMessageLength() - 6;
 	uint32_t* buffer = (uint32_t*)(msg.getBuffer() + msg.getReadPos());
+	int32_t readPos = 0;
 	while(readPos < messageLength / 4)
 	{
-		uint32_t v0 = buffer[readPos], v1 = buffer[readPos + 1], delta = 0x61C88647, sum = 0xC6EF3720;
+		uint32_t v0 = buffer[readPos], v1 = buffer[readPos + 1];
+		uint32_t delta = 0x61C88647;
+		uint32_t sum = 0xC6EF3720;
 		for(int32_t i = 0; i < 32; i++)
 		{
 			v1 -= ((v0 << 4 ^ v0 >> 5) + v0) ^ (sum + k[sum>>11 & 3]);
@@ -177,12 +175,7 @@ bool Protocol::XTEA_decrypt(NetworkMessage& msg)
 	int32_t tmp = msg.GetU16();
 	if(tmp > msg.getMessageLength() - 8)
 	{
-		std::cout << "[Failure - Protocol::XTEA_decrypt] Not valid unencrypted message size";
-		uint32_t ip = getIP();
-		if(ip)
-			std::cout << " (IP: " << convertIPAddress(ip) << ")";
-
-		std::cout << std::endl;
+		std::cout << "Failure: [Protocol::XTEA_decrypt]. Not valid unencrypted message size" << std::endl;
 		return false;
 	}
 
@@ -190,25 +183,22 @@ bool Protocol::XTEA_decrypt(NetworkMessage& msg)
 	return true;
 }
 
-bool Protocol::RSA_decrypt(NetworkMessage& msg)
-{
-	return RSA_decrypt(&g_RSA, msg);
-}
-
 bool Protocol::RSA_decrypt(RSA* rsa, NetworkMessage& msg)
 {
 	if(msg.getMessageLength() - msg.getReadPos() != 128)
 	{
-		std::cout << "[Warning - Protocol::RSA_decrypt] Not valid packet size" << std::endl;
+		std::cout << "Warning: [Protocol::RSA_decrypt]. Not valid packet size" << std::endl;
 		return false;
 	}
 
 	rsa->decrypt((char*)(msg.getBuffer() + msg.getReadPos()), 128);
-	if(!msg.GetByte())
-		return true;
+	if(msg.GetByte() != 0)
+	{
+		std::cout << "Warning: [Protocol::RSA_decrypt]. First byte != 0" << std::endl;
+		return false;
+	}
 
-	std::cout << "[Warning - Protocol::RSA_decrypt] First byte != 0" << std::endl;
-	return false;
+	return true;
 }
 
 uint32_t Protocol::getIP() const

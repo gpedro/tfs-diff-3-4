@@ -1,48 +1,49 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __ENUMS__
-#define __ENUMS__
-
+#ifndef __OTSERV_ENUMS_H__
+#define __OTSERV_ENUMS_H__
 #include <string>
 #include <list>
 
 enum DatabaseEngine_t
 {
 	DATABASE_ENGINE_NONE = 0,
-	DATABASE_ENGINE_MYSQL,
-	DATABASE_ENGINE_SQLITE,
-	DATABASE_ENGINE_POSTGRESQL,
-	DATABASE_ENGINE_ODBC
+	DATABASE_ENGINE_MYSQL = 1,
+	DATABASE_ENGINE_SQLITE = 2,
+	DATABASE_ENGINE_POSTGRESQL = 3,
+	DATABASE_ENGINE_ODBC = 4
 };
 
-enum Encryption_t
+enum PasswordType_t
 {
-	ENCRYPTION_PLAIN = 0,
-	ENCRYPTION_MD5,
-	ENCRYPTION_SHA1
+	PASSWORD_TYPE_PLAIN = 0,
+	PASSWORD_TYPE_MD5 = 1,
+	PASSWORD_TYPE_SHA1 = 2
 };
 
 enum GuildLevel_t
 {
-	GUILDLEVEL_NONE = 0,
-	GUILDLEVEL_MEMBER,
-	GUILDLEVEL_VICE,
-	GUILDLEVEL_LEADER
+	GUILDLEVEL_MEMBER = 1,
+	GUILDLEVEL_VICE = 2,
+	GUILDLEVEL_LEADER = 3
 };
 
 enum OperatingSystem_t
@@ -54,85 +55,67 @@ enum OperatingSystem_t
 enum Channels_t
 {
 	CHANNEL_GUILD = 0x00,
-	CHANNEL_PARTY = 0x01,
+	CHANNEL_STAFF = 0x01,
+	CHANNEL_COUNSELOR = 0x02,
 	CHANNEL_RVR = 0x03,
+	CHANNEL_GAMECHAT = 0x04,
+	CHANNEL_TRADE = 0x05,
+	CHANNEL_RLCHAT = 0x06,
+	CHANNEL_TRADEROOK = 0x07,
+	CHANNEL_PARTY = 0x08,
 	CHANNEL_HELP = 0x09,
-	CHANNEL_DEFAULT = 0xFFFE, //internal usage only, there is no such channel
 	CHANNEL_PRIVATE = 0xFFFF
-};
-
-enum ViolationAction_t
-{
-	ACTION_NOTATION = 0,
-	ACTION_NAMEREPORT,
-	ACTION_BANISHMENT,
-	ACTION_BANREPORT,
-	ACTION_BANFINAL,
-	ACTION_BANREPORTFINAL,
-	ACTION_STATEMENT,
-	//internal use
-	ACTION_DELETION,
-	ACTION_NAMELOCK,
-	ACTION_BANLOCK,
-	ACTION_BANLOCKFINAL,
-	ACTION_PLACEHOLDER
 };
 
 enum RaceType_t
 {
-	RACE_NONE = 0,
-	RACE_VENOM,
-	RACE_BLOOD,
-	RACE_UNDEAD,
-	RACE_FIRE,
-	RACE_ENERGY
+	RACE_NONE	= 0,
+	RACE_VENOM 	= 1,
+	RACE_BLOOD	= 2,
+	RACE_UNDEAD	= 3,
+	RACE_FIRE	= 4,
+	RACE_ENERGY	= 5
 };
 
 enum CombatType_t
 {
 	COMBAT_FIRST		= 0,
 	COMBAT_NONE		= COMBAT_FIRST,
-	COMBAT_PHYSICALDAMAGE	= 1 << 0,
-	COMBAT_ENERGYDAMAGE	= 1 << 1,
-	COMBAT_EARTHDAMAGE	= 1 << 2,
-	COMBAT_FIREDAMAGE	= 1 << 3,
-	COMBAT_UNDEFINEDDAMAGE	= 1 << 4,
-	COMBAT_LIFEDRAIN	= 1 << 5,
-	COMBAT_MANADRAIN	= 1 << 6,
-	COMBAT_HEALING		= 1 << 7,
-	COMBAT_DROWNDAMAGE	= 1 << 8,
-	COMBAT_ICEDAMAGE	= 1 << 9,
-	COMBAT_HOLYDAMAGE	= 1 << 10,
-	COMBAT_DEATHDAMAGE	= 1 << 11,
+	COMBAT_PHYSICALDAMAGE	= 1,
+	COMBAT_ENERGYDAMAGE	= 2,
+	COMBAT_EARTHDAMAGE	= 4,
+	COMBAT_FIREDAMAGE	= 8,
+	COMBAT_UNDEFINEDDAMAGE	= 16,
+	COMBAT_LIFEDRAIN	= 32,
+	COMBAT_MANADRAIN	= 64,
+	COMBAT_HEALING		= 128,
+	COMBAT_DROWNDAMAGE	= 256,
+	COMBAT_ICEDAMAGE	= 512,
+	COMBAT_HOLYDAMAGE	= 1024,
+	COMBAT_DEATHDAMAGE      = 2048,
 	COMBAT_LAST		= COMBAT_DEATHDAMAGE
 };
 
 enum CombatParam_t
 {
-	COMBATPARAM_NONE = 0,
-	COMBATPARAM_COMBATTYPE,
-	COMBATPARAM_EFFECT,
-	COMBATPARAM_DISTANCEEFFECT,
-	COMBATPARAM_BLOCKEDBYSHIELD,
-	COMBATPARAM_BLOCKEDBYARMOR,
-	COMBATPARAM_TARGETCASTERORTOPMOST,
-	COMBATPARAM_CREATEITEM,
-	COMBATPARAM_AGGRESSIVE,
-	COMBATPARAM_DISPEL,
-	COMBATPARAM_USECHARGES,
-	COMBATPARAM_TARGETPLAYERSORSUMMONS,
-	COMBATPARAM_DIFFERENTAREADAMAGE,
-	COMBATPARAM_HITEFFECT,
-	COMBATPARAM_HITCOLOR
+	COMBATPARAM_COMBATTYPE = 1,
+	COMBATPARAM_EFFECT = 2,
+	COMBATPARAM_DISTANCEEFFECT = 3,
+	COMBATPARAM_BLOCKEDBYSHIELD = 4,
+	COMBATPARAM_BLOCKEDBYARMOR = 5,
+	COMBATPARAM_TARGETCASTERORTOPMOST = 6,
+	COMBATPARAM_CREATEITEM = 7,
+	COMBATPARAM_AGGRESSIVE = 8,
+	COMBATPARAM_DISPEL = 9,
+	COMBATPARAM_USECHARGES = 10
 };
 
 enum CallBackParam_t
 {
-	CALLBACKPARAM_NONE = 0,
-	CALLBACKPARAM_LEVELMAGICVALUE,
-	CALLBACKPARAM_SKILLVALUE,
-	CALLBACKPARAM_TARGETTILECALLBACK,
-	CALLBACKPARAM_TARGETCREATURECALLBACK
+	CALLBACKPARAM_LEVELMAGICVALUE = 1,
+	CALLBACKPARAM_SKILLVALUE = 2,
+	CALLBACKPARAM_TARGETTILECALLBACK = 3,
+	CALLBACKPARAM_TARGETCREATURECALLBACK = 4
 };
 
 enum ConditionParam_t
@@ -192,38 +175,19 @@ enum BlockType_t
 	BLOCK_IMMUNITY
 };
 
-enum Reflect_t
-{
-	REFLECT_FIRST = 0,
-	REFLECT_PERCENT = REFLECT_FIRST,
-	REFLECT_CHANCE,
-	REFLECT_LAST = REFLECT_CHANCE
-};
-
-enum Increment_t
-{
-	INCREMENT_FIRST = 0,
-	HEALING_VALUE = INCREMENT_FIRST,
-	HEALING_PERCENT,
-	MAGIC_VALUE,
-	MAGIC_PERCENT,
-	INCREMENT_LAST = MAGIC_PERCENT
-};
-
 enum skills_t
 {
 	SKILL_FIRST = 0,
 	SKILL_FIST = SKILL_FIRST,
-	SKILL_CLUB,
-	SKILL_SWORD,
-	SKILL_AXE,
-	SKILL_DIST,
-	SKILL_SHIELD,
-	SKILL_FISH,
-	SKILL__MAGLEVEL,
-	SKILL__LEVEL,
-	SKILL_LAST = SKILL_FISH,
-	SKILL__LAST = SKILL__LEVEL
+	SKILL_CLUB = 1,
+	SKILL_SWORD = 2,
+	SKILL_AXE = 3,
+	SKILL_DIST = 4,
+	SKILL_SHIELD = 5,
+	SKILL_FISH = 6,
+	MAGLEVEL = 7,
+	LEVEL = 8,
+	SKILL_LAST = SKILL_FISH
 };
 
 enum stats_t
@@ -241,71 +205,80 @@ enum lossTypes_t
 {
 	LOSS_FIRST = 0,
 	LOSS_EXPERIENCE = LOSS_FIRST,
-	LOSS_MANA,
-	LOSS_SKILLS,
-	LOSS_CONTAINERS,
-	LOSS_ITEMS,
+	LOSS_MANASPENT = 1,
+	LOSS_SKILLTRIES = 2,
+	LOSS_ITEMS = 3,
 	LOSS_LAST = LOSS_ITEMS
 };
 
 enum formulaType_t
 {
 	FORMULA_UNDEFINED = 0,
-	FORMULA_LEVELMAGIC,
-	FORMULA_SKILL,
-	FORMULA_VALUE
+	FORMULA_LEVELMAGIC = 1,
+	FORMULA_SKILL = 2,
+	FORMULA_VALUE = 3
 };
 
 enum ConditionId_t
 {
 	CONDITIONID_DEFAULT = -1,
 	CONDITIONID_COMBAT = 0,
-	CONDITIONID_HEAD,
-	CONDITIONID_NECKLACE,
-	CONDITIONID_BACKPACK,
-	CONDITIONID_ARMOR,
-	CONDITIONID_RIGHT,
-	CONDITIONID_LEFT,
-	CONDITIONID_LEGS,
-	CONDITIONID_FEET,
-	CONDITIONID_RING,
-	CONDITIONID_AMMO,
-	CONDITIONID_OUTFIT
+	CONDITIONID_HEAD = 1,
+	CONDITIONID_NECKLACE = 2,
+	CONDITIONID_BACKPACK = 3,
+	CONDITIONID_ARMOR = 4,
+	CONDITIONID_RIGHT = 5,
+	CONDITIONID_LEFT = 6,
+	CONDITIONID_LEGS = 7,
+	CONDITIONID_FEET = 8,
+	CONDITIONID_RING = 9,
+	CONDITIONID_AMMO = 10
 };
 
 enum PlayerSex_t
 {
 	PLAYERSEX_FEMALE = 0,
-	PLAYERSEX_MALE
-	// DO NOT ADD HERE! Every higher sex is only for your
-	// own use- each female should be even and male odd.
+	PLAYERSEX_MALE = 1
+};
+
+enum CharacterTypes_t
+{
+	PLAYER_MALE_1 = 0x80,
+	PLAYER_MALE_2 = 0x81,
+	PLAYER_MALE_3 = 0x82,
+	PLAYER_MALE_4 = 0x83,
+	PLAYER_MALE_5 = 0x84,
+	PLAYER_MALE_6 = 0x85,
+	PLAYER_MALE_7 = 0x86,
+	PLAYER_FEMALE_1 = 0x88,
+	PLAYER_FEMALE_2 = 0x89,
+	PLAYER_FEMALE_3 = 0x8A,
+	PLAYER_FEMALE_4 = 0x8B,
+	PLAYER_FEMALE_5 = 0x8C,
+	PLAYER_FEMALE_6 = 0x8D,
+	PLAYER_FEMALE_7 = 0x8E,
 };
 
 struct Outfit_t
 {
-	Outfit_t() {lookHead = lookBody = lookLegs = lookFeet = lookType = lookTypeEx = lookAddons = 0;}
+	Outfit_t()
+	{
+		lookHead = lookBody = lookLegs = lookFeet = lookType = lookTypeEx = lookAddons = 0;
+	}
+
 	uint16_t lookType, lookTypeEx;
 	uint8_t lookHead, lookBody, lookLegs, lookFeet, lookAddons;
-
-	bool operator==(const Outfit_t o) const
-	{
-		return (o.lookAddons == lookAddons
-			&& o.lookType == lookType && o.lookTypeEx == lookTypeEx
-			&& o.lookHead == lookHead && o.lookBody == lookBody
-			&& o.lookLegs == lookLegs && o.lookFeet == lookFeet);
-	}
-
-	bool operator!=(const Outfit_t o) const
-	{
-		return !(*this == o);
-	}
 };
 
 struct LightInfo
 {
 	uint32_t level, color;
 
-	LightInfo() {level = color = 0;}
+	LightInfo()
+	{
+		level = color = 0;
+	}
+
 	LightInfo(uint32_t _level, uint32_t _color):
 		level(_level), color(_color) {}
 };
@@ -323,6 +296,7 @@ struct ShopInfo
 		buyPrice = sellPrice = -1;
 		itemName = "";
 	}
+
 	ShopInfo(uint32_t _itemId, int32_t _subType = 1, int32_t _buyPrice = -1, int32_t _sellPrice = -1,
 		const std::string& _itemName = ""): itemId(_itemId), subType(_subType), buyPrice(_buyPrice),
 		sellPrice(_sellPrice), itemName(_itemName) {}

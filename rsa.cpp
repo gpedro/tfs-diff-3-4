@@ -1,24 +1,30 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 #include "otpch.h"
+
 #include "rsa.h"
+#include <string>
 
 RSA::RSA()
 {
+	OTSYS_THREAD_LOCKVARINIT(rsaLock);
 	m_keySet = false;
 	mpz_init2(m_p, 1024);
 	mpz_init2(m_q, 1024);
@@ -57,7 +63,7 @@ bool RSA::setKey(const std::string& file)
 
 void RSA::setKey(const char* p, const char* q, const char* d)
 {
-	boost::recursive_mutex::scoped_lock lockClass(rsaLock);
+	OTSYS_THREAD_LOCK_CLASS lockClass(rsaLock);
 
 	mpz_set_str(m_p, p, 10);
 	mpz_set_str(m_q, q, 10);
@@ -81,7 +87,7 @@ void RSA::setKey(const char* p, const char* q, const char* d)
 
 void RSA::decrypt(char* msg, int32_t size)
 {
-	boost::recursive_mutex::scoped_lock lockClass(rsaLock);
+	OTSYS_THREAD_LOCK_CLASS lockClass(rsaLock);
 
 	mpz_t c,v1,v2,u2,tmp;
 	mpz_init2(c, 1024);

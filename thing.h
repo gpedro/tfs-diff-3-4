@@ -1,27 +1,31 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __THING__
-#define __THING__
+#ifndef __THING_H__
+#define __THING_H__
+
 #include "position.h"
 
+/*Notice: remember to add new error codes to global.lua*/
 enum ReturnValue
 {
-	RET_DONTSHOWMESSAGE = 0,
 	RET_NOERROR = 1,
 	RET_NOTPOSSIBLE = 2,
 	RET_NOTENOUGHROOM = 3,
@@ -81,11 +85,10 @@ enum ReturnValue
 	RET_YOUNEEDAMAGICITEMTOCASTSPELL = 57,
 	RET_CANNOTCONJUREITEMHERE = 58,
 	RET_YOUNEEDTOSPLITYOURSPEARS = 59,
-	RET_NAMEISTOOAMBIGUOUS = 60,
+	RET_NAMEISTOOAMBIGIOUS = 60,
 	RET_CANONLYUSEONESHIELD = 61,
-	RET_YOUARENOTTHEOWNER = 62,
-	RET_YOUMAYNOTCASTAREAONBLACKSKULL = 63,
-	RET_TILEISFULL = 64
+	RET_NOPARTYMEMBERSINRANGE = 62,
+	RET_YOUARENOTTHEOWNER = 63
 };
 
 class Tile;
@@ -96,16 +99,16 @@ class Creature;
 class Thing
 {
 	protected:
-		Thing(): parent(NULL), refCount(0) {}
+		Thing();
 
 	public:
-		virtual ~Thing() {}
+		virtual ~Thing();
 
-		void addRef() {++refCount;}
-		void unRef()
+		void useThing2() {++useCount;}
+		void releaseThing2()
 		{
-			--refCount;
-			if(refCount <= 0)
+			--useCount;
+			if(useCount <= 0)
 				delete this;
 		}
 
@@ -116,13 +119,13 @@ class Thing
 
 		virtual void setParent(Cylinder* cylinder) {parent = cylinder;}
 
-		Cylinder* getTopParent();
+		Cylinder* getTopParent(); //returns Tile/Container or a Player
 		const Cylinder* getTopParent() const;
 
 		virtual Tile* getTile();
 		virtual const Tile* getTile() const;
 
-		virtual Position getPosition() const;
+		virtual const Position& getPosition() const;
 		virtual int32_t getThrowRange() const = 0;
 		virtual bool isPushable() const = 0;
 
@@ -135,6 +138,7 @@ class Thing
 
 	private:
 		Cylinder* parent;
-		int32_t refCount;
+		int32_t useCount;
 };
-#endif
+
+#endif //__THING_H__

@@ -1,42 +1,46 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-#include "housetile.h"
 
+#include "housetile.h"
 #include "house.h"
 #include "game.h"
 #include "configmanager.h"
 
-extern ConfigManager g_config;
 extern Game g_game;
 
 HouseTile::HouseTile(int32_t x, int32_t y, int32_t z, House* _house):
-	DynamicTile(x, y, z)
+Tile(x, y, z)
 {
 	house = _house;
 	setFlag(TILESTATE_HOUSE);
 }
 
+HouseTile::~HouseTile()
+{
+	//
+}
+
 void HouseTile::__addThing(Creature* actor, int32_t index, Thing* thing)
 {
 	Tile::__addThing(actor, index, thing);
-	if(!thing->getParent())
-		return;
-
 	if(Item* item = thing->getItem())
 		updateHouse(item);
 }
@@ -44,23 +48,20 @@ void HouseTile::__addThing(Creature* actor, int32_t index, Thing* thing)
 void HouseTile::__internalAddThing(uint32_t index, Thing* thing)
 {
 	Tile::__internalAddThing(index, thing);
-	if(!thing->getParent())
-		return;
-
 	if(Item* item = thing->getItem())
 		updateHouse(item);
 }
 
 void HouseTile::updateHouse(Item* item)
 {
-	if(item->getTile() != this)
-		return;
-
-	Door* door = item->getDoor();
-	if(door && door->getDoorId())
-		house->addDoor(door);
-	else if(BedItem* bed = item->getBed())
-		house->addBed(bed);
+	if(item->getTile() == this)
+	{
+		Door* door = item->getDoor();
+		if(door && door->getDoorId() != 0)
+			house->addDoor(door);
+		else if(BedItem* bed = item->getBed())
+			house->addBed(bed);
+	}
 }
 
 ReturnValue HouseTile::__queryAdd(int32_t index, const Thing* thing, uint32_t count, uint32_t flags) const
@@ -69,17 +70,9 @@ ReturnValue HouseTile::__queryAdd(int32_t index, const Thing* thing, uint32_t co
 	{
 		if(const Player* player = creature->getPlayer())
 		{
-			if(!house->isInvited(player))
+			if(!house->isInvited(player) && !player->hasFlag(PlayerFlag_CanEditHouses))
 				return RET_PLAYERISNOTINVITED;
 		}
-		else
-			return RET_NOTPOSSIBLE;
-	}
-	else if(thing->getItem())
-	{
-		const uint32_t itemLimit = g_config.getNumber(ConfigManager::ITEMLIMIT_HOUSETILE);
-		if(itemLimit && getThingCount() > itemLimit)
-			return RET_TILEISFULL;
 	}
 
 	return Tile::__queryAdd(index, thing, count, flags);
@@ -93,12 +86,16 @@ Cylinder* HouseTile::__queryDestination(int32_t& index, const Thing* thing, Item
 		{
 			if(!house->isInvited(player) && !player->hasFlag(PlayerFlag_CanEditHouses))
 			{
-				Tile* destTile = g_game.getTile(house->getEntry());
+				Tile* destTile = g_game.getTile(house->getEntryPosition());
 				if(!destTile)
 				{
+					#ifdef __DEBUG__
+					assert(destTile != NULL);
+					#endif
 					std::cout << "[Error - HouseTile::__queryDestination] Tile at house entry position for house: "
-						<< house->getName() << " (" << house->getId() << ") does not exist." << std::endl;
-					destTile = g_game.getTile(player->getMasterPosition());
+						<< house->getName() << " (" << house->getHouseId() << ") does not exist." << std::endl;
+
+					destTile = g_game.getTile(player->getTemplePosition());
 					if(!destTile)
 						destTile = &(Tile::nullTile);
 				}

@@ -1,25 +1,29 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __DATABASE__
-#define __DATABASE__
+#ifndef __OTSERV_DATABASE_H__
+#define __OTSERV_DATABASE_H__
+
 #include "otsystem.h"
-
 #include "enums.h"
+
 #include <sstream>
 
 #ifdef MULTI_SQL_DRIVERS
@@ -59,7 +63,7 @@ class PgSQLResult;
 #endif
 
 #ifndef DATABASE_CLASS
-#error "You have to compile with at least one database driver!"
+#error "You have to compile with atl east one database driver!"
 #define DBResult void
 #define DBInsert void*
 #define Database void
@@ -68,6 +72,7 @@ typedef DATABASE_CLASS Database;
 typedef DBRES_CLASS DBResult;
 
 class DBQuery;
+
 enum DBParam_t
 {
 	DBPARAM_MULTIINSERT = 1
@@ -79,7 +84,7 @@ class _Database
 		/**
 		* Singleton implementation.
 		*
-		* Retruns instance of database handler. Don't create database (or drivers) instances in your code - instead of it use Database::getInstance()-> This method stores static instance of connection class internaly to make sure exacly one instance of connection is created for entire system.
+		* Retruns instance of database handler. Don't create database (or drivers) instances in your code - instead of it use Database::getInstance(). This method stores static instance of connection class internaly to make sure exacly one instance of connection is created for entire system.
 		*
 		* @return database connection handler singletor
 		*/
@@ -93,7 +98,7 @@ class _Database
 		* @param DBParam_t parameter to get
 		* @return suitable for given parameter
 		*/
-		DATABASE_VIRTUAL bool getParam(DBParam_t param) {return false;}
+		DATABASE_VIRTUAL bool getParam(DBParam_t param) { return false; }
 
 		/**
 		* Database connected.
@@ -102,12 +107,7 @@ class _Database
 		*
 		* @return whether or not the database is connected.
 		*/
-		DATABASE_VIRTUAL bool isConnected() {return m_connected;}
-
-		/**
-		* Database ...
-		*/
-		DATABASE_VIRTUAL void use() {m_use = time(NULL);}
+		DATABASE_VIRTUAL bool isConnected() { return m_connected; }
 
 	protected:
 		/**
@@ -120,10 +120,9 @@ class _Database
 		*	If your database system doesn't support transactions you should return true - it's not feature test, code should work without transaction, just will lack integrity.
 		*/
 		friend class DBTransaction;
-
-		DATABASE_VIRTUAL bool beginTransaction() {return 0;}
-		DATABASE_VIRTUAL bool rollback() {return 0;}
-		DATABASE_VIRTUAL bool commit() {return 0;}
+		DATABASE_VIRTUAL bool beginTransaction() { return 0; }
+		DATABASE_VIRTUAL bool rollback() { return 0; }
+		DATABASE_VIRTUAL bool commit() { return 0; }
 
 	public:
 		/**
@@ -134,7 +133,7 @@ class _Database
 		* @param std::string query command
 		* @return true on success, false on error
 		*/
-		DATABASE_VIRTUAL bool executeQuery(const std::string &query) {return 0;}
+		DATABASE_VIRTUAL bool executeQuery(const std::string &query) { return 0; }
 
 		/**
 		* Queries database.
@@ -144,7 +143,7 @@ class _Database
 		* @param std::string query
 		* @return results object (null on error)
 		*/
-		DATABASE_VIRTUAL DBResult* storeQuery(const std::string &query) {return 0;}
+		DATABASE_VIRTUAL DBResult* storeQuery(const std::string &query) { return 0; }
 
 		/**
 		* Escapes string for query.
@@ -154,8 +153,7 @@ class _Database
 		* @param std::string string to be escaped
 		* @return quoted string
 		*/
-		DATABASE_VIRTUAL std::string escapeString(const std::string &s) {return "''";}
-
+		DATABASE_VIRTUAL std::string escapeString(const std::string &s) { return "''"; }
 		/**
 		* Escapes binary stream for query.
 		*
@@ -165,38 +163,37 @@ class _Database
 		* @param long stream length
 		* @return quoted string
 		*/
-		DATABASE_VIRTUAL std::string escapeBlob(const char* s, uint32_t length) {return "''";}
+		DATABASE_VIRTUAL std::string escapeBlob(const char* s, uint32_t length) { return "''"; }
 
 		/**
-		 * Retrieve id of last inserted row
-		 *
-		 * @return id on success, 0 if last query did not result on any rows with auto_increment keys
-		 */
-		DATABASE_VIRTUAL uint64_t getLastInsertId() {return 0;}
+		* Resource freeing.
+		*
+		* @param DBResult* resource to be freed
+		*/
+		DATABASE_VIRTUAL void freeResult(DBResult *res) {}
 
 		/**
 		* Get case insensitive string comparison operator
 		*
 		* @return the case insensitive operator
 		*/
-		DATABASE_VIRTUAL std::string getStringComparison() {return "= ";}
-		DATABASE_VIRTUAL std::string getUpdateLimiter() {return " LIMIT 1;";}
+		DATABASE_VIRTUAL std::string getStringComparisonOperator() { return "="; }
 
 		/**
 		* Get database engine
 		*
 		* @return the database engine type
 		*/
-		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() {return DATABASE_ENGINE_NONE;}
+		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() { return DATABASE_ENGINE_NONE; }
 
 	protected:
-		_Database() {}
+		_Database() { m_lastUse = time(NULL); }
 		DATABASE_VIRTUAL ~_Database() {}
 
 		DBResult* verifyResult(DBResult* result);
 
 		bool m_connected;
-		time_t m_use;
+		time_t m_lastUse;
 
 	private:
 		static Database* _instance;
@@ -209,32 +206,27 @@ class _DBResult
 		*\returns The Integer value of the selected field and row
 		*\param s The name of the field
 		*/
-		DATABASE_VIRTUAL int32_t getDataInt(const std::string &s) {return 0;}
-
+		DATABASE_VIRTUAL int32_t getDataInt(const std::string &s) { return 0; }
 		/** Get the Long value of a field in database
 		*\returns The Long value of the selected field and row
 		*\param s The name of the field
 		*/
-		DATABASE_VIRTUAL int64_t getDataLong(const std::string &s) {return 0;}
-
+		DATABASE_VIRTUAL int64_t getDataLong(const std::string &s) { return 0; }
 		/** Get the String of a field in database
 		*\returns The String of the selected field and row
 		*\param s The name of the field
 		*/
-		DATABASE_VIRTUAL std::string getDataString(const std::string &s) {return "''";}
-
+		DATABASE_VIRTUAL std::string getDataString(const std::string &s) { return "''"; }
 		/** Get the blob of a field in database
 		*\returns a PropStream that is initiated with the blob data field, if not exist it returns NULL.
 		*\param s The name of the field
 		*/
-		DATABASE_VIRTUAL const char* getDataStream(const std::string &s, uint64_t &size) {return 0;}
+		DATABASE_VIRTUAL const char* getDataStream(const std::string &s, uint64_t &size) { return 0; }
 
-		/** Result freeing
-		*/
-		DATABASE_VIRTUAL void free() {/*delete this;*/}
-
-		/** Moves to next result in set
-		*\returns true if moved, false if there are no more results.
+		/**
+		* Moves to next result in set.
+		*
+		* @return true if moved, false if there are no more results.
 		*/
 		DATABASE_VIRTUAL bool next() {return false;}
 
@@ -251,12 +243,13 @@ class _DBResult
 class DBQuery : public std::stringstream
 {
 	friend class _Database;
+
 	public:
-		DBQuery() {databaseLock.lock();}
-		virtual ~DBQuery() {str(""); databaseLock.unlock();}
+		DBQuery();
+		virtual ~DBQuery();
 
 	protected:
-		static boost::recursive_mutex databaseLock;
+		static OTSYS_THREAD_LOCKVAR databaseLock;
 };
 
 /**
@@ -301,11 +294,13 @@ class DBInsert
 		bool execute();
 
 	protected:
-		Database* m_db;
 		bool m_multiLine;
 
 		uint32_t m_rows;
-		std::string m_query, m_buf;
+		std::string m_query;
+		std::string m_buf;
+
+		Database* m_db;
 };
 
 
@@ -344,16 +339,16 @@ class DBTransaction
 
 		bool commit()
 		{
-			if(m_state != STATE_START)
+			if(m_state == STATE_START)
+			{
+				m_state = STEATE_COMMIT;
+				return m_database->commit();
+			}
+			else
 				return false;
-
-			m_state = STEATE_COMMIT;
-			return m_database->commit();
 		}
 
 	private:
-		Database* m_database;
-
 		enum TransactionStates_t
 		{
 			STATE_NO_START,
@@ -362,6 +357,9 @@ class DBTransaction
 		};
 
 		TransactionStates_t m_state;
+		Database* m_database;
 };
+
 #endif
+
 #endif

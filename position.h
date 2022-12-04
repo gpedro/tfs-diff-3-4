@@ -1,24 +1,27 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+// position - represents a map position, for now just a 3d point
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __POSITION__
-#define __POSITION__
+#ifndef __OTSERV_POS_H
+#define __OTSERV_POS_H
+
 #include <stdlib.h>
-
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -42,28 +45,29 @@ typedef std::vector<Direction> DirVector;
 class Position
 {
 	public:
-		Position(): x(0), y(0), z(0) {}
+		Position() : x(0), y(0), z(7) {}
 		~Position() {}
 
-		template<uint16_t deltax, uint16_t deltay, uint16_t deltaz>
+		template<int32_t deltax, int32_t deltay, int32_t deltaz>
 		inline static bool areInRange(const Position& p1, const Position& p2)
 		{
-			return !(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay || std::abs(float(p1.z - p2.z)) > deltaz);
+			if(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay || std::abs(float(p1.z - p2.z)) > deltaz)
+				return false;
+
+			return true;
 		}
 
-		template<uint16_t deltax, uint16_t deltay>
+		template<int32_t deltax, int32_t deltay>
 		inline static bool areInRange(const Position& p1, const Position& p2)
 		{
-			return !(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay);
+			if(std::abs(float(p1.x - p2.x)) > deltax || std::abs(float(p1.y - p2.y)) > deltay)
+				return false;
+
+			return true;
 		}
 
-		static bool areInRange(const Position& r, const Position& p1, const Position& p2)
-		{
-			return !(std::abs(float(p1.x - p2.x)) > r.x || std::abs(float(p1.y - p2.y)) > r.y || std::abs(float(p1.z - p2.z)) > r.z);
-		}
-
-		Position(uint16_t _x, uint16_t _y, uint16_t _z): x(_x), y(_y), z(_z) {}
-		uint16_t x, y, z;
+		Position(int32_t _x, int32_t _y, int32_t _z) : x(_x), y(_y), z(_z) {}
+		int32_t x, y, z;
 
 		bool operator<(const Position& p) const
 		{
@@ -95,17 +99,18 @@ class Position
 
 		bool operator==(const Position p) const
 		{
-			return (p.x == x && p.y == y && p.z == z);
+			if(p.x == x && p.y == y && p.z == z)
+				return true;
+
+			return false;
 		}
 
 		bool operator!=(const Position p) const
 		{
-			return !(*this == p);
-		}
+			if(p.x == x && p.y == y && p.z == z)
+				return false;
 
-		Position operator+(const Position p1)
-		{
-			return Position(x + p1.x, y + p1.y, z + p1.z);
+			return true;
 		}
 
 		Position operator-(const Position p1)
@@ -123,22 +128,29 @@ class PositionEx : public Position
 		PositionEx() {}
 		~PositionEx() {}
 
-		PositionEx(uint16_t _x, uint16_t _y, uint16_t _z, int16_t _stackpos): Position(_x,_y,_z), stackpos(_stackpos) {}
-		PositionEx(uint16_t _x, uint16_t _y, uint16_t _z): Position(_x,_y,_z), stackpos(0) {}
+		PositionEx(int32_t _x, int32_t _y, int32_t _z, int32_t _stackpos) : Position(_x,_y,_z), stackpos(_stackpos) {}
+		PositionEx(int32_t _x, int32_t _y, int32_t _z) : Position(_x,_y,_z), stackpos(0) {}
 
-		PositionEx(Position p): Position(p.x, p.y, p.z), stackpos(0) {}
-		PositionEx(Position p, int16_t _stackpos): Position(p.x, p.y, p.z), stackpos(_stackpos) {}
+		PositionEx(Position p) : Position(p.x, p.y, p.z), stackpos(0) {}
+		PositionEx(Position p, int32_t _stackpos) : Position(p.x, p.y, p.z), stackpos(_stackpos) {}
 
-		int16_t stackpos;
+		int32_t stackpos;
 
-		bool operator==(const PositionEx p) const
+		bool operator==(const PositionEx p)  const
 		{
-			return (p.x == x && p.y == y && p.z == z && p.stackpos == stackpos);
+			if(p.x == x && p.y == y && p.z == z && p.stackpos == stackpos)
+				return true;
+
+			return false;
 		}
 
-		bool operator!=(const PositionEx p) const
+		bool operator!=(const PositionEx p)  const
 		{
-			return !(p.x == x && p.y == y && p.z == z && p.stackpos != stackpos);
+			if(p.x == x && p.y == y && p.z == z && p.stackpos != stackpos)
+				return false;
+
+			return true;
 		}
 };
+
 #endif

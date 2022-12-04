@@ -1,31 +1,33 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-#include <libxml/xmlmemory.h>
-#include <libxml/parser.h>
 
 #include "spawn.h"
-#include "tools.h"
-
+#include "game.h"
 #include "player.h"
 #include "npc.h"
-
+#include "tools.h"
 #include "configmanager.h"
-#include "game.h"
+
+#include <libxml/xmlmemory.h>
+#include <libxml/parser.h>
 
 extern ConfigManager g_config;
 extern Monsters g_monsters;
@@ -36,14 +38,13 @@ extern Game g_game;
 
 Spawns::Spawns()
 {
-	filename = "";
 	loaded = started = false;
+	filename = "";
 }
 
 Spawns::~Spawns()
 {
-	if(started)
-		clear();
+	clear();
 }
 
 bool Spawns::loadFromXml(const std::string& _filename)
@@ -53,166 +54,203 @@ bool Spawns::loadFromXml(const std::string& _filename)
 
 	filename = _filename;
 	xmlDocPtr doc = xmlParseFile(filename.c_str());
-	if(!doc)
+	if(doc)
 	{
-		std::cout << "[Warning - Spawns::loadFromXml] Cannot open spawns file." << std::endl;
-		std::cout << getLastXMLError() << std::endl;
-		return false;
-	}
+		xmlNodePtr root, spawnNode;
+		root = xmlDocGetRootElement(doc);
 
-	xmlNodePtr spawnNode, root = xmlDocGetRootElement(doc);
-	if(xmlStrcmp(root->name,(const xmlChar*)"spawns"))
-	{
-		std::cout << "[Error - Spawns::loadFromXml] Malformed spawns file." << std::endl;
-		xmlFreeDoc(doc);
-		return false;
-	}
-
-	spawnNode = root->children;
-	while(spawnNode)
-	{
-		parseSpawnNode(spawnNode, false);
-		spawnNode = spawnNode->next;
-	}
-
-	xmlFreeDoc(doc);
-	loaded = true;
-	return true;
-}
-
-bool Spawns::parseSpawnNode(xmlNodePtr p, bool checkDuplicate)
-{
-	if(xmlStrcmp(p->name, (const xmlChar*)"spawn"))
-		return false;
-
-	int32_t intValue;
-	std::string strValue;
-
-	Position centerPos;
-	if(!readXMLString(p, "centerpos", strValue))
-	{
-		if(!readXMLInteger(p, "centerx", intValue))
-			return false;
-
-		centerPos.x = intValue;
-		if(!readXMLInteger(p, "centery", intValue))
-			return false;
-
-		centerPos.y = intValue;
-		if(!readXMLInteger(p, "centerz", intValue))
-			return false;
-
-		centerPos.z = intValue;
-	}
-	else
-	{
-		IntegerVec posVec = vectorAtoi(explodeString(",", strValue));
-		if(posVec.size() < 3)
-			return false;
-
-		centerPos = Position(posVec[0], posVec[1], posVec[2]);
-	}
-
-	if(!readXMLInteger(p, "radius", intValue))
-		return false;
-
-	int32_t radius = intValue;
-	Spawn* spawn = new Spawn(centerPos, radius);
-	if(checkDuplicate)
-	{
-		for(SpawnList::iterator it = spawnList.begin(); it != spawnList.end(); ++it)
+		if(xmlStrcmp(root->name,(const xmlChar*)"spawns") != 0)
 		{
-			if((*it)->getPosition() == centerPos)
-				delete *it;
+			xmlFreeDoc(doc);
+			return false;
 		}
-	}
 
-	spawnList.push_back(spawn);
-	xmlNodePtr tmpNode = p->children;
-	while(tmpNode)
-	{
-		if(!xmlStrcmp(tmpNode->name, (const xmlChar*)"monster"))
+		int32_t intValue;
+		std::string strValue;
+
+		spawnNode = root->children;
+		while(spawnNode)
 		{
-			std::string name;
-			if(!readXMLString(tmpNode, "name", strValue))
+			if(xmlStrcmp(spawnNode->name, (const xmlChar*)"spawn") == 0)
 			{
-				tmpNode = tmpNode->next;
-				continue;
-			}
+				Position centerPos;
+				int32_t radius = -1;
 
-			name = strValue;
-			int32_t interval = MINSPAWN_INTERVAL / 1000;
-			if(readXMLInteger(tmpNode, "spawntime", intValue) || readXMLInteger(tmpNode, "interval", intValue))
-			{
-				if(intValue <= interval)
+				if(readXMLInteger(spawnNode, "centerx", intValue))
+					centerPos.x = intValue;
+				else
 				{
-					std::cout << "[Warning - Spawns::loadFromXml] " << name << " " << centerPos << " spawntime cannot";
-					std::cout << " be less than " << interval << " seconds." << std::endl;
-
-					tmpNode = tmpNode->next;
-					continue;
+					xmlFreeDoc(doc);
+					return false;
 				}
 
-				interval = intValue;
+				if(readXMLInteger(spawnNode, "centery", intValue))
+					centerPos.y = intValue;
+				else
+				{
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				if(readXMLInteger(spawnNode, "centerz", intValue))
+					centerPos.z = intValue;
+				else
+				{
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				if(readXMLInteger(spawnNode, "radius", intValue))
+					radius = intValue;
+				else
+				{
+					xmlFreeDoc(doc);
+					return false;
+				}
+
+				Spawn* spawn = new Spawn(centerPos, radius);
+				spawnList.push_back(spawn);
+
+				xmlNodePtr tmpNode = spawnNode->children;
+				while(tmpNode)
+				{
+					if(xmlStrcmp(tmpNode->name, (const xmlChar*)"monster") == 0)
+					{
+						std::string name = "";
+						Position pos = centerPos;
+						Direction dir = NORTH;
+						uint32_t interval = 0;
+
+						if(readXMLString(tmpNode, "name", strValue))
+							name = strValue;
+						else
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						if(readXMLInteger(tmpNode, "direction", intValue))
+						{
+							switch(intValue)
+							{
+								case 0:
+									dir = NORTH;
+									break;
+								case 1:
+									dir = EAST;
+									break;
+								case 2:
+									dir = SOUTH;
+									break;
+								case 3:
+									dir = WEST;
+									break;
+							}
+						}
+
+						if(readXMLInteger(tmpNode, "x", intValue))
+							pos.x += intValue;
+						else
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						if(readXMLInteger(tmpNode, "y", intValue))
+							pos.y += intValue;
+						else
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						if(readXMLInteger(tmpNode, "spawntime", intValue) || readXMLInteger(tmpNode, "interval", intValue))
+							interval = intValue * 1000;
+						else
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						if(interval > MINSPAWN_INTERVAL)
+							spawn->addMonster(name, pos, dir, interval);
+						else
+							std::cout << "[Warning] Spawns::loadFromXml " << name << " " << pos << " spawntime can not be less than " << MINSPAWN_INTERVAL / 1000 << " seconds." << std::endl;
+					}
+					else if(xmlStrcmp(tmpNode->name, (const xmlChar*)"npc") == 0)
+					{
+						Direction direction = NORTH;
+						std::string name = "";
+						Position placePos = centerPos;
+
+						if(readXMLString(tmpNode, "name", strValue))
+							name = strValue;
+						else
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						if(readXMLInteger(tmpNode, "direction", intValue))
+						{
+							switch(intValue)
+							{
+								case 0:
+									direction = NORTH;
+									break;
+								case 1:
+									direction = EAST;
+									break;
+								case 2:
+									direction = SOUTH;
+									break;
+								case 3:
+									direction = WEST;
+									break;
+							}
+						}
+
+						if(readXMLInteger(tmpNode, "x", intValue))
+							placePos.x += intValue;
+						else
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						if(readXMLInteger(tmpNode, "y", intValue))
+							placePos.y += intValue;
+						else
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						Npc* npc = Npc::createNpc(name);
+						if(!npc)
+						{
+							tmpNode = tmpNode->next;
+							continue;
+						}
+
+						npc->setDirection(direction);
+						npc->setMasterPos(placePos, radius);
+						npcList.push_back(npc);
+					}
+
+					tmpNode = tmpNode->next;
+				}
 			}
 
-			interval *= 1000;
-			Position placePos = centerPos;
-			if(readXMLInteger(tmpNode, "x", intValue))
-				placePos.x += intValue;
-
-			if(readXMLInteger(tmpNode, "y", intValue))
-				placePos.y += intValue;
-
-			if(readXMLInteger(tmpNode, "z", intValue))
-				placePos.z /*+*/= intValue;
-
-			Direction direction = NORTH;
-			if(readXMLInteger(tmpNode, "direction", intValue) && direction >= EAST && direction <= WEST)
-				direction = (Direction)intValue;
-
-			spawn->addMonster(name, placePos, direction, interval);
+			spawnNode = spawnNode->next;
 		}
-		else if(!xmlStrcmp(tmpNode->name, (const xmlChar*)"npc"))
-		{
-			std::string name;
-			if(!readXMLString(tmpNode, "name", strValue))
-			{
-				tmpNode = tmpNode->next;
-				continue;
-			}
 
-			name = strValue;
-			Position placePos = centerPos;
-			if(readXMLInteger(tmpNode, "x", intValue))
-				placePos.x += intValue;
-
-			if(readXMLInteger(tmpNode, "y", intValue))
-				placePos.y += intValue;
-
-			if(readXMLInteger(tmpNode, "z", intValue))
-				placePos.z /*+*/= intValue;
-
-			Direction direction = NORTH;
-			if(readXMLInteger(tmpNode, "direction", intValue) && direction >= EAST && direction <= WEST)
-				direction = (Direction)intValue;
-
-			Npc* npc = Npc::createNpc(name);
-			if(!npc)
-			{
-				tmpNode = tmpNode->next;
-				continue;
-			}
-
-			npc->setMasterPosition(placePos, radius);
-			npc->setDirection(direction);
-			npcList.push_back(npc);
-		}
-
-		tmpNode = tmpNode->next;
+		xmlFreeDoc(doc);
+		loaded = true;
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 void Spawns::startup()
@@ -221,7 +259,7 @@ void Spawns::startup()
 		return;
 
 	for(NpcList::iterator it = npcList.begin(); it != npcList.end(); ++it)
-		g_game.placeCreature((*it), (*it)->getMasterPosition(), false, true);
+		g_game.placeCreature((*it), (*it)->getMasterPos(), false, true);
 
 	npcList.clear();
 	for(SpawnList::iterator it = spawnList.begin(); it != spawnList.end(); ++it)
@@ -232,12 +270,11 @@ void Spawns::startup()
 
 void Spawns::clear()
 {
-	started = false;
-	for(SpawnList::iterator it = spawnList.begin(); it != spawnList.end(); ++it)
+	for(SpawnList::iterator it= spawnList.begin(); it != spawnList.end(); ++it)
 		delete (*it);
 
 	spawnList.clear();
-	loaded = false;
+	loaded = started = false;
 	filename = "";
 }
 
@@ -250,10 +287,10 @@ bool Spawns::isInZone(const Position& centerPos, int32_t radius, const Position&
 		(pos.y >= centerPos.y - radius) && (pos.y <= centerPos.y + radius));
 }
 
-void Spawn::startEvent()
+void Spawn::startSpawnCheck()
 {
 	if(checkSpawnEvent == 0)
-		checkSpawnEvent = Scheduler::getInstance().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
+		checkSpawnEvent = Scheduler::getScheduler().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
 }
 
 Spawn::Spawn(const Position& _pos, int32_t _radius)
@@ -267,18 +304,16 @@ Spawn::Spawn(const Position& _pos, int32_t _radius)
 Spawn::~Spawn()
 {
 	stopEvent();
-	Monster* monster = NULL;
 	for(SpawnedMap::iterator it = spawnedMap.begin(); it != spawnedMap.end(); ++it)
 	{
-		if(!(monster = it->second))
-			continue;
+		Monster* monster = it->second;
+		spawnedMap.erase(it->first);
 
 		monster->setSpawn(NULL);
-		if(!monster->isRemoved())
-			g_game.freeThing(monster);
+		if(monster->isRemoved())
+			g_game.FreeThing(monster);
 	}
 
-	spawnedMap.clear();
 	spawnMap.clear();
 }
 
@@ -295,6 +330,11 @@ bool Spawn::findPlayer(const Position& pos)
 	}
 
 	return false;
+}
+
+bool Spawn::isInSpawnZone(const Position& pos)
+{
+	return Spawns::getInstance()->isInZone(centerPos, radius, pos);
 }
 
 bool Spawn::spawnMonster(uint32_t spawnId, MonsterType* mType, const Position& pos, Direction dir, bool startup /*= false*/)
@@ -322,10 +362,9 @@ bool Spawn::spawnMonster(uint32_t spawnId, MonsterType* mType, const Position& p
 	}
 
 	monster->setSpawn(this);
-	monster->addRef();
-
-	monster->setMasterPosition(pos, radius);
+	monster->useThing2();
 	monster->setDirection(dir);
+	monster->setMasterPos(pos, radius);
 
 	spawnedMap.insert(SpawnedPair(spawnId, monster));
 	spawnMap[spawnId].lastSpawn = OTSYS_TIME();
@@ -361,7 +400,7 @@ void Spawn::checkSpawn()
 			if(spawnId != 0)
 				spawnMap[spawnId].lastSpawn = OTSYS_TIME();
 
-			monster->unRef();
+			monster->releaseThing2();
 			spawnedMap.erase(it++);
 		}
 		else if(!isInSpawnZone(monster->getPosition()) && spawnId != 0)
@@ -398,7 +437,7 @@ void Spawn::checkSpawn()
 	}
 
 	if(spawnedMap.size() < spawnMap.size())
-		checkSpawnEvent = Scheduler::getInstance().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
+		checkSpawnEvent = Scheduler::getScheduler().addEvent(createSchedulerTask(getInterval(), boost::bind(&Spawn::checkSpawn, this)));
 #ifdef __DEBUG_SPAWN__
 	else
 		std::cout << "[Notice] Spawn::checkSpawn stopped " << this << std::endl;
@@ -407,16 +446,10 @@ void Spawn::checkSpawn()
 
 bool Spawn::addMonster(const std::string& _name, const Position& _pos, Direction _dir, uint32_t _interval)
 {
-	if(!g_game.getTile(_pos))
-	{
-		std::cout << "[Spawn::addMonster] NULL tile at spawn position (" << _pos << ")" << std::endl;
-		return false;
-	}
-
 	MonsterType* mType = g_monsters.getMonsterType(_name);
 	if(!mType)
 	{
-		std::cout << "[Spawn::addMonster] Cannot find \"" << _name << "\"" << std::endl;
+		std::cout << "[Spawn::addMonster] Can not find " << _name << std::endl;
 		return false;
 	}
 
@@ -441,7 +474,7 @@ void Spawn::removeMonster(Monster* monster)
 	{
 		if(it->second == monster)
 		{
-			monster->unRef();
+			monster->releaseThing2();
 			spawnedMap.erase(it);
 			break;
 		}
@@ -452,7 +485,7 @@ void Spawn::stopEvent()
 {
 	if(checkSpawnEvent != 0)
 	{
-		Scheduler::getInstance().stopEvent(checkSpawnEvent);
+		Scheduler::getScheduler().stopEvent(checkSpawnEvent);
 		checkSpawnEvent = 0;
 	}
 }

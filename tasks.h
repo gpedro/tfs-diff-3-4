@@ -1,82 +1,78 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+// Special Tasks which require more arguments than possible
+// with STL functions...
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __TASKS__
-#define __TASKS__
-#include "otsystem.h"
+#ifndef __OTSERV_TASKS_H__
+#define __OTSERV_TASKS_H__
 
 #include <boost/function.hpp>
-#define DISPATCHER_TASK_EXPIRATION 2000
+#include "otsystem.h"
 
 class Task
 {
 	public:
-		Task(const boost::function<void (void)>& f): m_expiration(
-			boost::date_time::not_a_date_time), m_f(f) {}
-		Task(uint32_t ms, const boost::function<void (void)>& f): m_expiration(
-			boost::get_system_time() + boost::posix_time::milliseconds(ms)), m_f(f) {}
-
 		virtual ~Task() {}
-		void operator()() {m_f();}
 
-		void unsetExpiration() {m_expiration = boost::date_time::not_a_date_time;}
-		bool hasExpired() const
+		void operator()()
 		{
-			if(m_expiration == boost::date_time::not_a_date_time)
-				return false;
-
-			return m_expiration < boost::get_system_time();
+			m_f();
 		}
 
 	protected:
-		boost::system_time m_expiration;
+		Task(boost::function<void (void)> f)
+		{
+			m_f = f;
+		}
+
 		boost::function<void (void)> m_f;
+
+		friend Task* createTask(boost::function<void (void)>);
 };
 
 inline Task* createTask(boost::function<void (void)> f)
 {
 	return new Task(f);
 }
-inline Task* createTask(uint32_t expiration, boost::function<void (void)> f)
-{
-	return new Task(expiration, f);
-}
 
 class Dispatcher
 {
 	public:
 		virtual ~Dispatcher() {}
-		static Dispatcher& getInstance()
+
+		static Dispatcher& getDispatcher()
 		{
 			static Dispatcher dispatcher;
 			return dispatcher;
 		}
 
-		void addTask(Task* task, bool front = false);
+		void addTask(Task* task);
 
 		void stop();
 		void shutdown();
 
-		static void dispatcherThread(void* p);
+		static OTSYS_THREAD_RETURN dispatcherThread(void* p);
 
 	protected:
+		Dispatcher();
 		void flush();
 
-		Dispatcher();
 		enum DispatcherState
 		{
 			STATE_RUNNING,
@@ -84,10 +80,11 @@ class Dispatcher
 			STATE_TERMINATED
 		};
 
-		boost::mutex m_taskLock;
-		boost::condition_variable m_taskSignal;
+		OTSYS_THREAD_LOCKVAR_PTR m_taskLock;
+		OTSYS_THREAD_SIGNALVAR m_taskSignal;
 
 		std::list<Task*> m_taskList;
 		static DispatcherState m_threadState;
 };
+
 #endif

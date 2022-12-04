@@ -44,7 +44,12 @@
  ** documentation and/or software.                                   **
  **********************************************************************
  */
+
 #include "otpch.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "md5.h"
 
 /* Padding */

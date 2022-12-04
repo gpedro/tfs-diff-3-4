@@ -1,49 +1,68 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+// Exception Handler class
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
-#ifdef __EXCEPTION_TRACER__
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
+
 #include "otpch.h"
-#include "exception.h"
+
+#ifdef __EXCEPTION_TRACER__
 
 #include <iostream>
-#include <iomanip>
 #include <fstream>
-#ifdef WINDOWS
+#include <iomanip>
+#include <ctime>
+#include <stdlib.h>
+#include <map>
+
+#include "otsystem.h"
+#include "exception.h"
+
+#include "game.h"
+
+typedef std::map<uint32_t, char*> FunctionMap;
+
+#ifdef WIN32
 #include <excpt.h>
 #include <tlhelp32.h>
 #endif
 
-#include <boost/config.hpp>
-#include "tools.h"
+extern Game g_game;
 
-#include "configmanager.h"
-extern ConfigManager g_config;
-
-typedef std::map<uint32_t, char*> FunctionMap;
+uint32_t max_off, min_off;
 FunctionMap functionMap;
+bool maploaded = false;
+OTSYS_THREAD_LOCKVAR maploadlock;
 
-uint32_t offMax, offMin;
-bool mapLoaded = false;
-boost::recursive_mutex mapLock;
-
-#ifdef WINDOWS
-void printPointer(std::ostream* output, uint32_t p);
-EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRecord, void* EstablisherFrame,
-	struct _CONTEXT *ContextRecord, void* DispatcherContext);
+#ifdef WIN32
+void printPointer(std::ostream* output,uint32_t p);
+EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRecord, void * EstablisherFrame,
+	struct _CONTEXT *ContextRecord, void * DispatcherContext);
 #endif
+
+#ifndef COMPILER_STRING
+#ifdef __GNUC__
+#define COMPILER_STRING  "gcc " __VERSION__
+#else
+#define COMPILER_STRING  ""
+#endif
+#endif
+
+#define COMPILATION_DATE  __DATE__ " " __TIME__
 
 ExceptionHandler::ExceptionHandler()
 {
@@ -58,9 +77,9 @@ ExceptionHandler::~ExceptionHandler()
 
 bool ExceptionHandler::InstallHandler()
 {
-	#ifdef WINDOWS
-	boost::recursive_mutex::scoped_lock lockObj(mapLock);
-	if(!mapLoaded)
+	#ifdef WIN32
+	OTSYS_THREAD_LOCK_CLASS lockObj(maploadlock);
+	if(!maploaded)
 		LoadMap();
 
 	if(installed)
@@ -83,7 +102,6 @@ bool ExceptionHandler::InstallHandler()
 	__asm__("movl %0,%%eax;movl %%eax,%%fs:0;": : "g" (&chain):"%eax");
 	#endif
 	#endif
-
 	installed = true;
 	return true;
 }
@@ -94,7 +112,7 @@ bool ExceptionHandler::RemoveHandler()
 	if(!installed)
 		return false;
 
-	#ifdef WINDOWS
+	#ifdef WIN32
 	#ifdef __GNUC__
 	__asm__ ("movl %0,%%eax;movl %%eax,%%fs:0;"::"r"(chain.prev):"%eax" );
 	#endif
@@ -107,25 +125,25 @@ bool ExceptionHandler::RemoveHandler()
 char* getFunctionName(unsigned long addr, unsigned long& start)
 {
 	FunctionMap::iterator functions;
-	if(addr < offMin || addr > offMax)
-		return NULL;
-
-	for(FunctionMap::iterator functions = functionMap.begin(); functions != functionMap.end(); ++functions)
+	if(addr >= min_off && addr <= max_off)
 	{
-		if(functions->first <= addr || functions == functionMap.begin())
-			continue;
-
-		functions--;
-		start = functions->first;
-		return functions->second;
+		for(functions = functionMap.begin(); functions != functionMap.end(); ++functions)
+		{
+			if(functions->first > addr && functions != functionMap.begin())
+			{
+				functions--;
+				start = functions->first;
+				return functions->second;
+			}
+		}
 	}
 
 	return NULL;
 }
 
-#ifdef WINDOWS
-EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRecord, void* EstablisherFrame,
-	 struct _CONTEXT *ContextRecord, void* DispatcherContext)
+#ifdef WIN32
+EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRecord, void * EstablisherFrame,
+	 struct _CONTEXT *ContextRecord, void * DispatcherContext)
 {
 	uint32_t *esp;
 	uint32_t *next_ret;
@@ -136,9 +154,12 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 	uint32_t file,foundRetAddress = 0;
 	_MEMORY_BASIC_INFORMATION mbi;
 
+	//We SHOULD NOT save at crash, as it may cause data loss
+	//g_game.saveGameState(true);
+
 	std::ostream *outdriver;
-	std::cout << ">> CRASH: Writing report file..." << std::endl;
-	std::ofstream output(getFilePath(FILE_TYPE_LOG, "server/exceptions.log").c_str(), std::ios_base::app);
+	std::cout << ">> CRASH: Generating report file..." << std::endl;
+	std::ofstream output("report.txt", std::ios_base::app);
 	if(output.fail())
 	{
 		outdriver = &std::cout;
@@ -154,8 +175,8 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 	time(&rawtime);
 	*outdriver << "*****************************************************" << std::endl;
 	*outdriver << "Error report - " << std::ctime(&rawtime) << std::endl;
-	*outdriver << "Compiler Info - " << BOOST_COMPILER << std::endl;
-	*outdriver << "Compilation Date - " << __DATE__ << " " << __TIME__ << std::endl << std::endl;
+	*outdriver << "Compiler info - " << COMPILER_STRING << std::endl;
+	*outdriver << "Compilation Date - " << COMPILATION_DATE << std::endl << std::endl;
 
 	//system and process info
 	//- global memory information
@@ -264,7 +285,7 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 
 		if(esp - stackstart < 20 || nparameters < 10 || std::abs(esp - next_ret) < 10 || frame_param_counter < 8)
 		{
-			*outdriver << (uint32_t)esp << " | ";
+			*outdriver  << (uint32_t)esp << " | ";
 			printPointer(outdriver,stack_val);
 			if(esp == next_ret)
 				*outdriver << " \\\\\\\\\\\\ stack frame //////";
@@ -280,7 +301,7 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 			*outdriver<< std::endl;
 		}
 
-		if(stack_val >= offMin && stack_val <= offMax)
+		if(stack_val >= min_off && stack_val <= max_off)
 		{
 			foundRetAddress++;
 			//
@@ -297,30 +318,25 @@ EXCEPTION_DISPOSITION __cdecl _SEHHandler(struct _EXCEPTION_RECORD *ExceptionRec
 	if(file)
 		((std::ofstream*)outdriver)->close();
 
-	if(g_config.getBool(ConfigManager::TRACER_BOX))
-	{
-		std::stringstream ss;
-		ss << "If you want developers review this crash log, please open a tracker ticket for the software at OtLand.net and attach the " << getFilePath(FILE_TYPE_LOG, "server/exceptions.log") << " file.";
-		MessageBoxA(NULL, ss.str().c_str(), "Error", MB_OK | MB_ICONERROR);
-	}
-
+	MessageBoxA(NULL, "If you want developers review this crash log, please open a tracker ticket for the software at OtLand.net and attach the report.txt file.", "Error", MB_OK | MB_ICONERROR);
 	std::cout << "> Crash report generated, killing server." << std::endl;
 	exit(1);
 	return ExceptionContinueSearch;
 }
 
-void printPointer(std::ostream* output, uint32_t p)
+void printPointer(std::ostream* output,uint32_t p)
 {
 	*output << p;
-	if(!IsBadReadPtr((void*)p, 4))
+	if(IsBadReadPtr((void*)p, 4) == 0)
 		*output << " -> " << *(uint32_t*)p;
 }
+
 #endif
 
 bool ExceptionHandler::LoadMap()
 {
 	#ifdef __GNUC__
-	if(mapLoaded)
+	if(maploaded)
 		return false;
 
 	functionMap.clear();
@@ -328,8 +344,8 @@ bool ExceptionHandler::LoadMap()
 	//load map file if exists
 	char line[1024];
 	FILE* input = fopen("forgottenserver.map", "r");
-	offMin = 0xFFFFFF;
-	offMax = 0;
+	min_off = 0xFFFFFF;
+	max_off = 0;
 	int32_t n = 0;
 	if(!input)
 	{
@@ -342,7 +358,7 @@ bool ExceptionHandler::LoadMap()
 	//read until found .text		   0x00401000
 	while(fgets(line, 1024, input))
 	{
-		if(!memcmp(line, ".text",5))
+		if(memcmp(line,".text",5) == 0)
 			break;
 	}
 
@@ -385,10 +401,10 @@ bool ExceptionHandler::LoadMap()
 				strcpy(name, pos2);
 				name[strlen(pos2) - 1] = 0;
 				functionMap[offset] = name;
-				if(offset > offMax)
-					offMax = offset;
-				if(offset < offMin)
-					offMin = offset;
+				if(offset > max_off)
+					max_off = offset;
+				if(offset < min_off)
+					min_off = offset;
 				n++;
 			}
 		}
@@ -396,7 +412,7 @@ bool ExceptionHandler::LoadMap()
 
 	//close file
 	fclose(input);
-	mapLoaded = true;
+	maploaded = true;
 	#endif
 	return true;
 }
@@ -416,15 +432,15 @@ void ExceptionHandler::dumpStack()
 	uint32_t foundRetAddress = 0;
 	_MEMORY_BASIC_INFORMATION mbi;
 
-	std::cout << ">> CRASH: Writing report file..." << std::endl;
-	std::ofstream output(getFilePath(FILE_TYPE_LOG, "server/exceptions.log").c_str(), std::ios_base::app);
+	std::cout << ">> CRASH: Generating report file..." << std::endl;
+	std::ofstream output("report.txt", std::ios_base::app);
 	output.flags(std::ios::hex | std::ios::showbase);
 	time_t rawtime;
 	time(&rawtime);
 	output << "*****************************************************" << std::endl;
 	output << "Stack dump - " << std::ctime(&rawtime) << std::endl;
-	output << "Compiler Info - " << BOOST_COMPILER << std::endl;
-	output << "Compilation Date - " << __DATE__ << " " << __TIME__ << std::endl << std::endl;
+	output << "Compiler info - " << COMPILER_STRING << std::endl;
+	output << "Compilation Date - " << COMPILATION_DATE << std::endl << std::endl;
 
 	#ifdef __GNUC__
 	__asm__ ("movl %%esp, %0;":"=r"(esp)::);
@@ -455,7 +471,7 @@ void ExceptionHandler::dumpStack()
 
 		if(esp - stackstart < 20 || nparameters < 10 || std::abs(esp - next_ret) < 10 || frame_param_counter < 8)
 		{
-			output << (uint32_t)esp << " | ";
+			output  << (uint32_t)esp << " | ";
 			printPointer(&output, stack_val);
 			if(esp == next_ret)
 				output << " \\\\\\\\\\\\ stack frame //////";
@@ -471,7 +487,7 @@ void ExceptionHandler::dumpStack()
 			output << std::endl;
 		}
 
-		if(stack_val >= offMin && stack_val <= offMax)
+		if(stack_val >= min_off && stack_val <= max_off)
 		{
 			foundRetAddress++;
 			//

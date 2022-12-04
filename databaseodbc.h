@@ -1,19 +1,22 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
 //
 // C++ Interface: databaseodbc
@@ -24,18 +27,19 @@
 // Author: Bruno R Ferreira <brf_coldf@yahoo.com.br>, (C) 2007
 //
 //
-#ifndef __DATABASE_ODBC__
-#define __DATABASE_ODBC__
+#ifndef __DATABASE_ODBC_H__
+#define __DATABASE_ODBC_H__
 
-#ifndef __DATABASE__
+#ifndef __OTSERV_DATABASE_H__
 #error "database.h should be included first."
 #endif
 
-#ifdef WINDOWS
+#ifdef WIN32
 #include <windows.h>
 #else
 #include <sqltypes.h>
 #endif
+
 #include <sql.h>
 #include <sqlext.h>
 
@@ -57,10 +61,12 @@ class DatabaseODBC : public _Database
 		DATABASE_VIRTUAL bool executeQuery(const std::string& query);
 		DATABASE_VIRTUAL DBResult* storeQuery(const std::string& query);
 
-		DATABASE_VIRTUAL std::string escapeString(const std::string& s) {return escapeBlob(s.c_str(), s.length());}
+		DATABASE_VIRTUAL std::string escapeString(const std::string& s);
 		DATABASE_VIRTUAL std::string escapeBlob(const char *s, uint32_t length);
 
-		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() {return DATABASE_ENGINE_ODBC;}
+		DATABASE_VIRTUAL void freeResult(DBResult *res);
+
+		DATABASE_VIRTUAL DatabaseEngine_t getDatabaseEngine() { return DATABASE_ENGINE_ODBC; }
 
 	protected:
 		std::string _parse(const std::string& s);
@@ -79,16 +85,16 @@ class ODBCResult : public _DBResult
 		DATABASE_VIRTUAL std::string getDataString(const std::string& s);
 		DATABASE_VIRTUAL const char* getDataStream(const std::string& s, uint64_t& size);
 
-		DATABASE_VIRTUAL void free();
 		DATABASE_VIRTUAL bool next();
 
 	protected:
 		ODBCResult(SQLHSTMT stmt);
-		DATABASE_VIRTUAL ~ODBCResult() {}
+		DATABASE_VIRTUAL ~ODBCResult();
 
 		typedef std::map<const std::string, uint32_t> listNames_t;
 		listNames_t m_listNames;
 
 		SQLHSTMT m_handle;
 };
+
 #endif

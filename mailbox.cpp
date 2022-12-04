@@ -1,33 +1,42 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 #include "otpch.h"
-#include "mailbox.h"
 
+#include "mailbox.h"
+#include "game.h"
 #include "player.h"
 #include "iologindata.h"
-
 #include "depot.h"
 #include "town.h"
 
-#include "configmanager.h"
-#include "game.h"
-
-extern ConfigManager g_config;
 extern Game g_game;
+
+Mailbox::Mailbox(uint16_t _type) : Item(_type)
+{
+	//
+}
+
+Mailbox::~Mailbox()
+{
+	//
+}
 
 ReturnValue Mailbox::__queryAdd(int32_t index, const Thing* thing, uint32_t count,
 	uint32_t flags) const
@@ -37,7 +46,6 @@ ReturnValue Mailbox::__queryAdd(int32_t index, const Thing* thing, uint32_t coun
 		if(canSend(item))
 			return RET_NOERROR;
 	}
-
 	return RET_NOTPOSSIBLE;
 }
 
@@ -48,92 +56,183 @@ ReturnValue Mailbox::__queryMaxCount(int32_t index, const Thing* thing, uint32_t
 	return RET_NOERROR;
 }
 
+ReturnValue Mailbox::__queryRemove(const Thing* thing, uint32_t count, uint32_t flags) const
+{
+	return RET_NOTPOSSIBLE;
+}
+
+Cylinder* Mailbox::__queryDestination(int32_t& index, const Thing* thing, Item** destItem,
+	uint32_t& flags)
+{
+	return this;
+}
+
+void Mailbox::__addThing(Creature* actor, Thing* thing)
+{
+	return __addThing(actor, 0, thing);
+}
+
 void Mailbox::__addThing(Creature* actor, int32_t index, Thing* thing)
 {
-	Item* item = thing->getItem();
-	if(!item)
-		return;
+	if(Item* item = thing->getItem())
+	{
+		if(canSend(item))
+			sendItem(actor, item);
+	}
+}
 
-	if(canSend(item))
-		sendItem(actor, item);
+void Mailbox::__updateThing(Thing* thing, uint16_t itemId, uint32_t count)
+{
+	//
+}
+
+void Mailbox::__replaceThing(uint32_t index, Thing* thing)
+{
+	//
+}
+
+void Mailbox::__removeThing(Thing* thing, uint32_t count)
+{
+	//
+}
+
+void Mailbox::postAddNotification(Creature* actor, Thing* thing, int32_t index, cylinderlink_t link /*= LINK_OWNER*/)
+{
+	getParent()->postAddNotification(actor, thing, index, LINK_PARENT);
+}
+
+void Mailbox::postRemoveNotification(Creature* actor, Thing* thing, int32_t index, bool isCompleteRemoval, cylinderlink_t link /*= LINK_OWNER*/)
+{
+	getParent()->postRemoveNotification(actor, thing, index, isCompleteRemoval, LINK_PARENT);
 }
 
 bool Mailbox::sendItem(Creature* actor, Item* item)
 {
-	uint32_t depotId = 0;
-	std::string name;
-	if(!getRecipient(item, name, depotId) || name.empty() || !depotId)
+	std::string receiver = std::string("");
+	uint32_t dp = 0;
+
+	if(!getReceiver(item, receiver, dp))
 		return false;
 
-	return IOLoginData::getInstance()->playerMail(actor, name, depotId, item);
-}
-
-bool Mailbox::getDepotId(const std::string& townString, uint32_t& depotId)
-{
-	Town* town = Towns::getInstance()->getTown(townString);
-	if(!town)
+	/**No need to continue if its still empty**/
+	if(receiver == "" || dp == 0)
 		return false;
 
-	IntegerVec disabledTowns = vectorAtoi(explodeString(g_config.getString(ConfigManager::MAILBOX_DISABLED_TOWNS), ","));
-	if(disabledTowns[0] != -1)
-	{	
-		for(IntegerVec::iterator it = disabledTowns.begin(); it != disabledTowns.end(); ++it)
+	uint32_t guid;
+	if(!IOLoginData::getInstance()->getGuidByName(guid, receiver))
+		return false;
+
+	if(Player* player = g_game.getPlayerByName(receiver))
+	{
+		Depot* depot = player->getDepot(dp, true);
+		if(depot)
 		{
-			if(town->getID() == uint32_t(*it))
-				return false;
+			if(g_game.internalMoveItem(actor, item->getParent(), depot, INDEX_WHEREEVER,
+				item, item->getItemCount(), NULL, FLAG_NOLIMIT) == RET_NOERROR)
+			{
+				g_game.transformItem(item, item->getID() + 1);
+				return true;
+			}
 		}
 	}
+	else if(IOLoginData::getInstance()->playerExists(receiver))
+	{
+		Player* player = new Player(receiver, NULL);
+		if(!IOLoginData::getInstance()->loadPlayer(player, receiver))
+		{
+			#ifdef __DEBUG_MAILBOX__
+			std::cout << "Failure: [Mailbox::sendItem], can not load player: " << receiver << std::endl;
+			#endif
+			delete player;
+			return false;
+		}
 
-	depotId = town->getID();
-	return true;
+		#ifdef __DEBUG_MAILBOX__
+		std::string playerName = player->getName();
+		if(g_game.getPlayerByName(playerName))
+		{
+			std::cout << "Failure: [Mailbox::sendItem], receiver is online: " << receiver << "," << playerName << std::endl;
+			delete player;
+			return false;
+		}
+		#endif
+
+		Depot* depot = player->getDepot(dp, true);
+		if(depot)
+		{
+			if(g_game.internalMoveItem(actor, item->getParent(), depot, INDEX_WHEREEVER,
+				item, item->getItemCount(), NULL, FLAG_NOLIMIT) == RET_NOERROR)
+			{
+				g_game.transformItem(item, item->getID() + 1);
+				IOLoginData::getInstance()->savePlayer(player);
+				delete player;
+				return true;
+			}
+		}
+
+		delete player;
+	}
+
+	return false;
 }
 
-bool Mailbox::getRecipient(Item* item, std::string& name, uint32_t& depotId)
+bool Mailbox::getReceiver(Item* item, std::string& name, uint32_t& dp)
 {
 	if(!item)
 		return false;
 
 	if(item->getID() == ITEM_PARCEL) /**We need to get the text from the label incase its a parcel**/
 	{
-		if(Container* parcel = item->getContainer())
+		Container* parcel = item->getContainer();
+		for(ItemList::const_iterator cit = parcel->getItems(); cit != parcel->getEnd(); cit++)
 		{
-			for(ItemList::const_iterator cit = parcel->getItems(); cit != parcel->getEnd(); ++cit)
+			if((*cit)->getID() == ITEM_LABEL)
 			{
-				if((*cit)->getID() == ITEM_LABEL && !(*cit)->getText().empty())
-				{
-					item = (*cit);
+				item = (*cit);
+				if(item->getText() != "")
 					break;
-				}
 			}
 		}
 	}
 	else if(item->getID() != ITEM_LETTER) /**The item is somehow not a parcel or letter**/
 	{
-		std::cout << "[Error - Mailbox::getReciver] Trying to get receiver from unkown item with id: " << item->getID() << "!" << std::endl;
+		std::cout << "Mailbox::getReciver error, trying to get reciecer from unkown item! ID:: " << item->getID() << "." << std::endl;
 		return false;
 	}
 
-	if(!item || item->getText().empty()) /**No label/letter found or its empty.**/
+	if(!item || item->getText() == "") /**No label/letter found or its empty.**/
 		return false;
 
+	std::string temp;
 	std::istringstream iss(item->getText(), std::istringstream::in);
-	uint32_t curLine = 0;
+	std::string strTown = "";
+	uint32_t curLine = 1;
 
-	std::string tmp, townString;
-	while(getline(iss, tmp, '\n') && curLine < 2)
+	while(getline(iss, temp, '\n'))
 	{
-		if(curLine == 0)
-			name = tmp;
-		else if(curLine == 1)
-			townString = tmp;
+		if(curLine == 1)
+			name = temp;
+		else if(curLine == 2)
+			strTown = temp;
+		else
+			break;
 
 		++curLine;
 	}
 
-	trimString(name);
-	if(townString.empty())
+	Town* town = Towns::getInstance().getTown(strTown);
+	if(town)
+		dp = town->getTownID();
+	else
 		return false;
 
-	trimString(townString);
-	return getDepotId(townString, depotId);
+	return true;
+}
+
+bool Mailbox::canSend(const Item* item) const
+{
+	if(item->getID() == ITEM_PARCEL || item->getID() == ITEM_LETTER)
+		return true;
+
+	return false;
 }

@@ -1,19 +1,23 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+//
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
+
 #include "otpch.h"
 #include <string>
 
@@ -33,10 +37,12 @@
 
 #if defined MULTI_SQL_DRIVERS
 #include "configmanager.h"
+
 extern ConfigManager g_config;
 #endif
 
-boost::recursive_mutex DBQuery::databaseLock;
+OTSYS_THREAD_LOCKVAR DBQuery::databaseLock;
+
 Database* _Database::_instance = NULL;
 
 Database* _Database::getInstance()
@@ -63,28 +69,41 @@ Database* _Database::getInstance()
 #else
 		_instance = new Database;
 #endif
+
+		OTSYS_THREAD_LOCKVARINIT(DBQuery::databaseLock);
 	}
 
-	_instance->use();
 	return _instance;
 }
 
 DBResult* _Database::verifyResult(DBResult* result)
 {
-	if(result->next())
+	if(!result->next())
+	{
+		_instance->freeResult(result);
+		return NULL;
+	}
+	else
 		return result;
+}
 
-	result->free();
-	result = NULL;
-	return NULL;
+DBQuery::DBQuery()
+{
+	OTSYS_THREAD_LOCK(databaseLock, "");
+}
+
+DBQuery::~DBQuery()
+{
+	OTSYS_THREAD_UNLOCK(databaseLock, "");
 }
 
 DBInsert::DBInsert(Database* db)
 {
 	m_db = db;
 	m_rows = 0;
+
 	// checks if current database engine supports multiline INSERTs
-	m_multiLine = m_db->getParam(DBPARAM_MULTIINSERT);
+	m_multiLine = m_db->getParam(DBPARAM_MULTIINSERT) != 0;
 }
 
 void DBInsert::setQuery(const std::string& query)
@@ -96,25 +115,31 @@ void DBInsert::setQuery(const std::string& query)
 
 bool DBInsert::addRow(const std::string& row)
 {
-	if(!m_multiLine) // executes INSERT for current row
-		return m_db->executeQuery(m_query + "(" + row + ")");
-
-	m_rows++;
-	int32_t size = m_buf.length();
-	// adds new row to buffer
-	if(!size)
-		m_buf = "(" + row + ")";
-	else if(size > 8192)
+	if(m_multiLine)
 	{
-		if(!execute())
-			return false;
+		m_rows++;
+		int32_t size = m_buf.length();
 
-		m_buf = "(" + row + ")";
+		// adds new row to buffer
+		if(size == 0)
+			m_buf = "(" + row + ")";
+		else if(size > 8192)
+		{
+			if(!execute())
+				return false;
+
+			m_buf = "(" + row + ")";
+		}
+		else
+				m_buf += ",(" + row + ")";
+
+		return true;
 	}
 	else
-		m_buf += ",(" + row + ")";
-
-	return true;
+	{
+		// executes INSERT for current row
+		return m_db->executeQuery(m_query + "(" + row + ")" );
+	}
 }
 
 bool DBInsert::addRow(std::stringstream& row)
@@ -126,15 +151,24 @@ bool DBInsert::addRow(std::stringstream& row)
 
 bool DBInsert::execute()
 {
-	if(!m_multiLine || m_buf.length() < 1) // INSERTs were executed on-fly
-		return true;
+	if(m_multiLine && m_buf.length() > 0)
+	{
+		if(m_rows == 0)
+		{
+			//no rows to execute
+			return true;
+		}
 
-	if(!m_rows) //no rows to execute
-		return true;
+		m_rows = 0;
 
-	m_rows = 0;
-	// executes buffer
-	bool res = m_db->executeQuery(m_query + m_buf);
-	m_buf = "";
-	return res;
+		// executes buffer
+		bool res = m_db->executeQuery(m_query + m_buf);
+		m_buf = "";
+		return res;
+	}
+	else
+	{
+		// INSERTs were executed on-fly
+		return true;
+	}
 }

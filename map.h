@@ -1,28 +1,38 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+// the map of OpenTibia
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
 
-#ifndef __MAP__
-#define __MAP__
-#include "tools.h"
+#ifndef __OTSERV_MAP_H__
+#define __OTSERV_MAP_H__
 
-#include "fileloader.h"
+#include <queue>
+#include <bitset>
+#include <map>
+
+#include <boost/shared_ptr.hpp>
+using boost::shared_ptr;
+
 #include "position.h"
-
+#include "item.h"
+#include "fileloader.h"
 #include "waypoints.h"
+#include "tools.h"
 #include "tile.h"
 
 class Creature;
@@ -30,18 +40,16 @@ class Player;
 class Game;
 class Tile;
 class Map;
-
 struct FindPathParams;
+
 struct AStarNode
 {
-	uint16_t x, y;
+	int32_t x, y;
 	AStarNode* parent;
 	int32_t f, g, h;
 };
 
-using boost::shared_ptr;
 #define MAP_MAX_LAYERS 16
-
 #define MAX_NODES 512
 #define GET_NODE_INDEX(a) (a - &nodes[0])
 
@@ -54,35 +62,38 @@ class AStarNodes
 		AStarNodes();
 		virtual ~AStarNodes() {}
 
-		void openNode(AStarNode* node);
-		void closeNode(AStarNode* node);
-
-		uint32_t countOpenNodes();
-		uint32_t countClosedNodes();
-
 		AStarNode* getBestNode();
 		AStarNode* createOpenNode();
-		AStarNode* getNodeInList(uint16_t x, uint16_t y);
 
-		bool isInList(uint16_t x, uint16_t y);
-		int32_t getEstimatedDistance(uint16_t x, uint16_t y, uint16_t xGoal, uint16_t yGoal);
+		void closeNode(AStarNode* node);
+		void openNode(AStarNode* node);
+
+		uint32_t countClosedNodes();
+		uint32_t countOpenNodes();
+
+		bool isInList(int32_t x, int32_t y);
+		AStarNode* getNodeInList(int32_t x, int32_t y);
 
 		int32_t getMapWalkCost(const Creature* creature, AStarNode* node,
 			const Tile* neighbourTile, const Position& neighbourPos);
 		static int32_t getTileWalkCost(const Creature* creature, const Tile* tile);
+		int32_t getEstimatedDistance(int32_t x, int32_t y, int32_t xGoal, int32_t yGoal);
 
 	private:
 		AStarNode nodes[MAX_NODES];
-
 		std::bitset<MAX_NODES> openNodes;
 		uint32_t curNode;
 };
 
-template<class T> class lessPointer: public std::binary_function<T*, T*, bool>
+template<class T> class lessPointer : public std::binary_function<T*, T*, bool>
 {
 	public:
 		bool operator()(T*& t1, T*& t2) {return *t1 < *t2;}
 };
+
+typedef std::list<Creature*> SpectatorVec;
+typedef std::list<Player*> PlayerList;
+typedef std::map<Position, boost::shared_ptr<SpectatorVec> > SpectatorCache;
 
 #define FLOOR_BITS 3
 #define FLOOR_SIZE (1 << FLOOR_BITS)
@@ -103,12 +114,10 @@ class QTreeNode
 		QTreeNode();
 		virtual ~QTreeNode();
 
-		bool isLeaf() const {return m_isLeaf;}
-
-		QTreeLeafNode* getLeaf(uint16_t x, uint16_t y);
-		static QTreeLeafNode* getLeafStatic(QTreeNode* root, uint16_t x, uint16_t y);
-
-		QTreeLeafNode* createLeaf(uint16_t x, uint16_t y, uint16_t level);
+		bool isLeaf(){return m_isLeaf;}
+		QTreeLeafNode* getLeaf(uint32_t x, uint32_t y);
+		static QTreeLeafNode* getLeafStatic(QTreeNode* root, uint32_t x, uint32_t y);
+		QTreeLeafNode* createLeaf(uint32_t x, uint32_t y, uint32_t level);
 
 	protected:
 		bool m_isLeaf;
@@ -124,8 +133,8 @@ class QTreeLeafNode : public QTreeNode
 		QTreeLeafNode();
 		virtual ~QTreeLeafNode();
 
-		Floor* createFloor(uint16_t z);
-		Floor* getFloor(uint16_t z){return m_array[z];}
+		Floor* createFloor(uint32_t z);
+		Floor* getFloor(uint32_t z){return m_array[z];}
 
 		QTreeLeafNode* stepSouth(){return m_leafS;}
 		QTreeLeafNode* stepEast(){return m_leafE;}
@@ -135,12 +144,10 @@ class QTreeLeafNode : public QTreeNode
 
 	protected:
 		static bool newLeaf;
-
 		QTreeLeafNode* m_leafS;
 		QTreeLeafNode* m_leafE;
-
 		Floor* m_array[MAP_MAX_LAYERS];
-		CreatureVector creatureList;
+		CreatureVector creature_list;
 
 		friend class Map;
 		friend class QTreeNode;
@@ -155,10 +162,10 @@ class Map
 {
 	public:
 		Map();
-		virtual ~Map() {}
+		virtual ~Map();
 
-		static const int32_t maxViewportX = 11; //min value: maxClientViewportX + 1
-		static const int32_t maxViewportY = 11; //min value: maxClientViewportY + 1
+		static const int32_t maxViewportX = 11;         //min value: maxClientViewportX + 1
+		static const int32_t maxViewportY = 11;         //min value: maxClientViewportY + 1
 		static const int32_t maxClientViewportX = 8;
 		static const int32_t maxClientViewportY = 6;
 
@@ -176,18 +183,27 @@ class Map
 		bool saveMap();
 
 		/**
+		* Clean a map.
+		* \returns amount of removed items
+		*/
+		uint32_t clean();
+
+		/**
 		* Get a single tile.
 		* \returns A pointer to that tile.
 		*/
-		Tile* getTile(int32_t x, int32_t y, int32_t z);
-		Tile* getTile(const Position& pos) {return getTile(pos.x, pos.y, pos.z);}
+		Tile* getTile(uint16_t x, uint16_t y, uint8_t z);
+		Tile* getTile(const Position& pos);
 
 		/**
 		* Set a single tile.
 		* \param a tile to set for the position
 		*/
-		void setTile(uint16_t _x, uint16_t _y, uint16_t _z, Tile* newTile);
-		void setTile(const Position& pos, Tile* newTile) {setTile(pos.x, pos.y, pos.z, newTile);}
+		void setTile(uint16_t _x, uint16_t _y, uint8_t _z, Tile* newTile);
+		void setTile(const Position& pos, Tile* newTile)
+		{
+			setTile(pos.x, pos.y, pos.z, newTile);
+		}
 
 		/**
 		* Place a creature on the map
@@ -245,14 +261,13 @@ class Map
 		Waypoints waypoints;
 
 	protected:
-		QTreeNode root;
-
 		uint32_t mapWidth, mapHeight;
 		std::string spawnfile, housefile;
 		StringVec descriptions;
-
+		QTreeNode root;
 		SpectatorCache spectatorCache;
-		void clearSpectatorCache() {spectatorCache.clear();}
+
+		void clearSpectatorCache();
 
 		// Actually scans the map for spectators
 		void getSpectatorsInternal(SpectatorVec& list, const Position& centerPos, bool checkforduplicate,
@@ -267,19 +282,30 @@ class Map
 		// that calls clearSpectatorCache is called.
 		const SpectatorVec& getSpectators(const Position& centerPos);
 
+		struct RefreshBlock_t
+		{
+			ItemVector list;
+			uint64_t lastRefresh;
+		};
+
+		typedef std::map<Tile*, RefreshBlock_t> TileMap;
+		TileMap refreshTileMap;
+
 		friend class Game;
 		friend class IOMap;
 };
 
 inline void QTreeLeafNode::addCreature(Creature* c)
 {
-	creatureList.push_back(c);
+	creature_list.push_back(c);
 }
 
 inline void QTreeLeafNode::removeCreature(Creature* c)
 {
-	CreatureVector::iterator it = std::find(creatureList.begin(), creatureList.end(), c);
-	assert(it != creatureList.end());
-	creatureList.erase(it);
+	CreatureVector::iterator it = std::find(creature_list.begin(), creature_list.end(), c);
+	assert(it != creature_list.end());
+	std::swap(*it, creature_list.back());
+	creature_list.pop_back();
 }
+
 #endif

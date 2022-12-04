@@ -1,21 +1,27 @@
-////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////
 // OpenTibia - an opensource roleplaying game
-////////////////////////////////////////////////////////////////////////
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//////////////////////////////////////////////////////////////////////
+// Input box
+//////////////////////////////////////////////////////////////////////
+// This program is free software; you can redistribute it and/or
+// modify it under the terms of the GNU General Public License
+// as published by the Free Software Foundation; either version 2
+// of the License, or (at your option) any later version.
 //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
 // You should have received a copy of the GNU General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-////////////////////////////////////////////////////////////////////////
+// along with this program; if not, write to the Free Software Foundation,
+// Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+//////////////////////////////////////////////////////////////////////
+
+#include "definitions.h"
+
+#ifndef __CONSOLE__
 #include "inputbox.h"
-#if defined(WINDOWS) && !defined(__CONSOLE__)
 
 HFONT CInputBox::m_hFont = NULL;
 HWND  CInputBox::m_hWndInputBox = NULL;
@@ -76,7 +82,7 @@ LRESULT CALLBACK CInputBox::WndProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 			lfont.lfPitchAndFamily = DEFAULT_PITCH;
 			m_hFont = CreateFontIndirect(&lfont);
 			m_hInst = GetModuleHandle(NULL);
-			m_hWndEdit = CreateWindowEx(WS_EX_STATICEDGE, "edit", "", WS_VISIBLE | WS_CHILD | WS_TABSTOP | ES_AUTOHSCROLL, 5, INPUTBOX_HEIGHT - 50, INPUTBOX_WIDTH - 16, 20, hWnd, NULL, m_hInst, NULL);
+			m_hWndEdit = CreateWindowEx(WS_EX_STATICEDGE, "edit", "", WS_VISIBLE | WS_CHILD  | WS_TABSTOP | ES_AUTOHSCROLL, 5, INPUTBOX_HEIGHT - 50, INPUTBOX_WIDTH - 16, 20, hWnd, NULL, m_hInst, NULL);
 			SendMessage(m_hWndEdit, WM_SETFONT, (WPARAM)m_hFont, 0);
 			m_hWndOK = CreateWindowEx(0, "button", "OK", WS_VISIBLE | WS_CHILD | WS_TABSTOP, INPUTBOX_WIDTH - 100, 10, 90, 25, hWnd, NULL, m_hInst, NULL);
 			SendMessage(m_hWndOK, WM_SETFONT, (WPARAM)m_hFont, 0);
